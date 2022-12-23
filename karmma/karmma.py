@@ -1,59 +1,157 @@
 import numpy as np
+import healpy as hp
 import torch
-
-from .HMCSampler import HMCSampler
-
+import pyro
+import pyro.distributions as dist
+from pyro.infer import MCMC, NUTS
+from .transforms import Alm2Map, conv2shear
+import pickle
+from joblib import Parallel, delayed
+from scipy.special import eval_legendre
+##==================================
+from joblib import Parallel, delayed
+##==================================
 
 class KarmmaSampler:
-    def tensorize(self, x):
-        return torch.Tensor(x).to(dtype=torch.float32, device=self.device)
-
-    def __init__(self, g1_obs, g2_obs, mask, u, s, mu, shift, k2g1, k2g2, inv_noise_1,
-                 inv_noise_2, device='cuda'):
-        self.device = device
-
+    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, cl, shift, cl_emu, lmax=None, gen_lmax=None):
+        self.g1_obs = g1_obs       
+        self.g2_obs = g2_obs
+        #==============================
+        self.N_Z_BINS = g1_obs.shape[0]
+        #==============================
+        self.sigma_obs = sigma_obs
         self.mask = mask
+        self.cl = cl
+        self.cl_emu   = cl_emu
+        self.shift    = shift
+        self.y_cl     = np.zeros_like(cl)
+        
+        self.mu = np.zeros(self.N_Z_BINS)
 
-        self.g1_obs = self.tensorize(g1_obs[mask])
-        self.g2_obs = self.tensorize(g2_obs[mask])
-        self.u = self.tensorize(u)
-        self.s = self.tensorize(s)
-        self.mu = self.tensorize(mu)
-        self.shift = shift
-        self.k2g1 = self.tensorize(k2g1)
-        self.k2g2 = self.tensorize(k2g2)
-        self.inv_noise_1 = self.tensorize(inv_noise_1)
-        self.inv_noise_2 = self.tensorize(inv_noise_2)
+        self.nside = hp.get_nside(self.g1_obs)
+        self.lmax = 2 * self.nside if not lmax else lmax
+        self.gen_lmax = 3 * self.nside - 1 if not gen_lmax else gen_lmax
 
-    def prior(self, x):
-        return -0.5 * torch.sum(torch.square(x) / self.s)
+        self.compute_lognorm_cl()
 
-    def likelihood(self, g1, g2):
-        like1 = -0.5 * (g1 - self.g1_obs) @ self.inv_noise_1 @ (g1 - self.g1_obs)
-        like2 = -0.5 * (g2 - self.g2_obs) @ self.inv_noise_2 @ (g2 - self.g2_obs)
+        theta_fid = np.array([0.233, 0.82])[np.newaxis]
+        theta_fid = torch.Tensor(theta_fid).to(torch.double)
+        self.y_cl_fid = self.get_cl_gp(theta_fid)
+        self.tensorize()
 
-        return like1 + like2
+    def get_cl_gp(self, theta_pred):
+        log_cl_pred = self.cl_emu.pca_mean
+        for i in range(self.cl_emu.N_PCA):
+            gp_pred_i = self.cl_emu.likelihoods[i](self.cl_emu.models[i](theta_pred)).mean
+            pca_coeff_i = self.cl_emu.PCA_MEAN[:,i] + self.cl_emu.PCA_STD[:,i] * gp_pred_i
+            log_cl_pred = log_cl_pred + pca_coeff_i * self.cl_emu.pca_components[i]
+        return torch.exp(log_cl_pred[0]).reshape((self.N_Z_BINS,self.N_Z_BINS,-1))
+    
+    def tensorize(self):
+        self.g1_obs = torch.tensor(self.g1_obs)
+        self.g2_obs = torch.tensor(self.g2_obs)
+        self.sigma_obs = torch.tensor(self.sigma_obs)
+        self.mask = torch.tensor(self.mask)
+        self.cl = torch.Tensor(self.cl)
+        self.y_cl = torch.tensor(self.y_cl)
 
-    def posterior(self, x):
-        k = torch.exp(self.mu + self.u @ x) - self.shift
+    def compute_lognorm_cl_at_ell(self, mu, w, integrand, ell):
+        integrand = np.log(np.polynomial.legendre.legval(mu, integrand) + 1)
+        return 2 * np.pi * np.sum(w * integrand * eval_legendre(ell, mu))
 
-        g1 = self.k2g1 @ k
-        g2 = self.k2g2 @ k
+    def compute_lognorm_cl(self, order=2):
+        mu, w = np.polynomial.legendre.leggauss(order * self.gen_lmax)
+        
+        print("Computing mu/sigma2....")
+        for i in range(self.N_Z_BINS):
+            print("z-bin i: %d"%(i))
+            xi0 = np.polynomial.legendre.legval(1, (2 * np.arange(self.gen_lmax + 1) + 1) * self.cl[i,i]) / (4 * np.pi)
+            sigma2 = np.log(xi0 / (self.shift[i] ** 2) + 1)            
+            self.mu[i] = np.log(self.shift[i]) - 0.5 * sigma2            
+        
+        print("Computing y_cl...")
+        for i in range(self.N_Z_BINS):    
+            for j in range(i+1):
+                print("z-bin i: %d, j: %d"%(i,j))
+                integrand = ((2 * np.arange(self.gen_lmax + 1) + 1) * self.cl[i,j] / (4 * np.pi * self.shift[i] * self.shift[j]))
 
-        return self.prior(x) + self.likelihood(g1, g2)
+                ycl_ij = np.array(Parallel(n_jobs=-1)(
+            delayed(self.compute_lognorm_cl_at_ell)(mu, w, integrand, ell) for ell in range(self.gen_lmax + 1)))
+#                 ycl_ij = np.array([self.compute_lognorm_cl_at_ell(mu, w, integrand, ell) for ell in range(self.gen_lmax + 1)])
+                self.y_cl[i,j] = ycl_ij
+                self.y_cl[j,i] = ycl_ij
+                
+        self.y_cl[:,:,:2]  = np.tile(1e-20 * np.eye(self.N_Z_BINS)[:,:,np.newaxis], (1,1,2))
 
-    def transform(self, x):
-        k = torch.exp(self.mu + self.u @ x) - self.shift
+    def get_xlm(self, xlm_real, xlm_imag):
+        ell, emm = hp.Alm.getlm(self.gen_lmax)
+        #==============================
+        _xlm_real = torch.zeros(self.N_Z_BINS, len(ell), dtype=torch.double)
+        _xlm_imag = torch.zeros_like(_xlm_real)
+        _xlm_real[:,ell > 1] = xlm_real
+        _xlm_imag[:,(ell > 1) & (emm > 0)] = xlm_imag
+        xlm = _xlm_real + 1j * _xlm_imag
+        #==============================
+        return xlm
 
-        return k
+    def matmul(self, A, x):
+        y = torch.zeros_like(x)
+        for i in range(self.N_Z_BINS):
+            for j in range(self.N_Z_BINS):
+                y[i] += A[i,j] * x[j]
+        return y
 
-    def sample(self, num_burn, num_burn_steps, burn_epsilon, num_samples, num_samp_steps, samp_epsilon):
-        x0 = torch.randn(len(self.s), device=self.device) * torch.sqrt(self.s)
+    def apply_cl(self, xlm, cl):
+        ell, emm = hp.Alm.getlm(self.gen_lmax)
+        
+        L = torch.linalg.cholesky(cl.T).T
+    
+        xlm_real = xlm.real
+        xlm_imag = xlm.imag
+        
+        L_arr = torch.swapaxes(L[:,:,ell[ell > -1]], 0,1)
+    
 
-        hmc = HMCSampler(self.posterior, x0, 1 / self.s, transform=self.transform, device=self.device)
+        ylm_real = self.matmul(L_arr, xlm_real) / torch.sqrt(torch.Tensor([2.]))
+        ylm_imag = self.matmul(L_arr, xlm_imag) / torch.sqrt(torch.Tensor([2.]))
 
-        hmc.sample(num_burn, num_burn_steps, burn_epsilon)
+        ylm_real[:,ell[emm==0]] *= torch.sqrt(torch.Tensor([2.]))
+    
+        return ylm_real + 1j * ylm_imag
+    
+    def model(self):
+        ell, emm = hp.Alm.getlm(self.gen_lmax)
 
-        chain = hmc.sample(num_samples, num_samp_steps, samp_epsilon)
+        xlm_real = pyro.sample('xlm_real', dist.Normal(torch.zeros(self.N_Z_BINS, (ell > 1).sum(), dtype=torch.double),
+                                                       torch.ones(self.N_Z_BINS, (ell > 1).sum(), dtype=torch.double)))
+        xlm_imag = pyro.sample('xlm_imag', dist.Normal(torch.zeros(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=torch.double),
+                                                       torch.ones(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=torch.double)))
 
-        return chain
+        theta = pyro.sample('theta', dist.Normal(torch.Tensor([0.233, 0.82]).to(torch.double), 
+                                                  torch.Tensor([0.05, 0.03]).to(torch.double)))
+        xlm = self.get_xlm(xlm_real, xlm_imag)
+        y_cl = self.get_cl_gp(theta.reshape((1,-1)))
+        y_cl = (y_cl / (self.y_cl_fid + 1e-30)) * self.y_cl
+        ylm = self.apply_cl(xlm, y_cl)
+        for i in range(self.N_Z_BINS):
+            k = torch.exp(self.mu[i] + Alm2Map.apply(ylm[i], self.nside, self.gen_lmax)) - self.shift[i]
+            g1, g2 = conv2shear(k, self.lmax)
+
+            pyro.sample(f'g1_obs_{i}', dist.Normal(g1[self.mask], self.sigma_obs[i,self.mask]), obs=self.g1_obs[i,self.mask])
+            pyro.sample(f'g2_obs_{i}', dist.Normal(g2[self.mask], self.sigma_obs[i,self.mask]), obs=self.g2_obs[i,self.mask])
+
+    def sample(self, num_burn, num_samples, kernel=None):
+        ell, emm = hp.Alm.getlm(self.gen_lmax)
+        if not kernel:
+            kernel = NUTS(self.model, target_accept_prob=0.65)
+        mcmc = MCMC(kernel, num_samples=num_samples, warmup_steps=num_burn,
+                    initial_params={"theta": torch.Tensor([0.233, 0.82]).to(torch.double), 
+                                    "xlm_real": 0.1 * torch.randn((self.N_Z_BINS, (ell > 1).sum()), dtype=torch.double),
+                                    "xlm_imag": 0.1 * torch.randn((self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum()), dtype=torch.double)})
+        mcmc.run()
+        self.samps = mcmc.get_samples()
+
+        return self.samps
+
+    def save_samples(self, fname):
+        pickle.dump(self.samps, open(fname, 'wb'))

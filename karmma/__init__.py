@@ -1,3 +1,3 @@
-from .HMCSampler import HMCSampler
 from .karmma import KarmmaSampler
-from . import utils
+from .config import KarmmaConfig
+from .emulator import *

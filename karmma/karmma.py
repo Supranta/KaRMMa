@@ -130,8 +130,7 @@ class KarmmaSampler:
         theta = pyro.sample('theta', dist.Normal(torch.Tensor([0.233, 0.82]).to(torch.double), 
                                                   torch.Tensor([0.05, 0.03]).to(torch.double)))
         xlm = self.get_xlm(xlm_real, xlm_imag)
-        y_cl = self.get_cl_gp(theta.reshape((1,-1)))
-        y_cl = (y_cl / (self.y_cl_fid + 1e-30)) * self.y_cl
+        y_cl = self.y_cl
         ylm = self.apply_cl(xlm, y_cl)
         for i in range(self.N_Z_BINS):
             k = torch.exp(self.mu[i] + Alm2Map.apply(ylm[i], self.nside, self.gen_lmax)) - self.shift[i]

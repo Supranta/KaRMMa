@@ -1,0 +1,19 @@
+data:
+    nbins: 5
+    nside: 256 
+    sigma_e: 0.261
+    shift: 0.00244556,0.00537171,0.00923855,0.01521374,0.01967868
+    datafile: data/test/kids_test_data.h5
+    nz_file: data/test/kids_nz_data_test.npy
+    
+io:     
+    output_dir: demo/output/hsc_kids_256_cosmo
+     
+emulator:
+    emu_file: data/test/emu_file.h5
+    n_pca: 6
+    
+mcmc:
+    n_burn_in: 100
+    n_samples: 150
+    

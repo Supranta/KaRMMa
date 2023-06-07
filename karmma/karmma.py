@@ -16,9 +16,7 @@ class KarmmaSampler:
     def __init__(self, g1_obs, g2_obs, sigma_obs, mask, cl, shift, cl_emu=None, lmax=None, gen_lmax=None, prior_only=False):
         self.g1_obs = g1_obs       
         self.g2_obs = g2_obs
-        #==============================
         self.N_Z_BINS = g1_obs.shape[0]
-        #==============================
         self.sigma_obs = sigma_obs
         self.mask = mask
         self.cl = cl
@@ -89,13 +87,11 @@ class KarmmaSampler:
 
     def get_xlm(self, xlm_real, xlm_imag):
         ell, emm = hp.Alm.getlm(self.gen_lmax)
-        #==============================
         _xlm_real = torch.zeros(self.N_Z_BINS, len(ell), dtype=torch.double)
         _xlm_imag = torch.zeros_like(_xlm_real)
         _xlm_real[:,ell > 1] = xlm_real
         _xlm_imag[:,(ell > 1) & (emm > 0)] = xlm_imag
         xlm = _xlm_real + 1j * _xlm_imag
-        #==============================
         return xlm
 
     def matmul(self, A, x):

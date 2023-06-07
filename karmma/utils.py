@@ -1,4 +1,5 @@
 import numpy as np
+import healpy as hp
 import pyccl
 import matplotlib.pyplot as plt
 
@@ -38,3 +39,11 @@ def plot_nz(nz):
         plt.plot(nz[i,:,0], nz[i,:,1], label='Bin %d'%(i+1))
     plt.legend()
     plt.show()    
+    
+def get_filtered_map(hp_map, ell_filter, nside):
+    a_lm = hp.sphtfunc.map2alm(hp_map)    
+
+    a_lm[ell_filter].real = 0.
+    a_lm[ell_filter].imag = 0.
+
+    return hp.sphtfunc.alm2map(a_lm, nside)    

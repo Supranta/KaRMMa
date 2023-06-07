@@ -1,5 +1,6 @@
 import numpy as np
 import pyccl
+import matplotlib.pyplot as plt
 
 def get_cl(Omega_c, sigma_8, nz_data, N_Z_BINS, gen_lmax):
     cosmo = pyccl.Cosmology(
@@ -27,3 +28,13 @@ def get_cl(Omega_c, sigma_8, nz_data, N_Z_BINS, gen_lmax):
     
     return cl
 
+def plot_nz(nz):
+    nbins = nz.shape[0]
+
+    plt.xlabel('$z$')
+    plt.ylabel('$n(z)$')
+    for i in range(nbins):
+        plt.xlim(0., 2.)
+        plt.plot(nz[i,:,0], nz[i,:,1], label='Bin %d'%(i+1))
+    plt.legend()
+    plt.show()    

@@ -19,4 +19,6 @@ emulator:
 mcmc:
     n_burn_in: 100
     n_samples: 150
+#     prior_only: true
+    prior_only: false
     

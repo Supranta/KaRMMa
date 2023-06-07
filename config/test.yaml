@@ -1,13 +1,14 @@
-data:
+analysis:
     nbins: 5
     nside: 256 
     sigma_e: 0.261
     shift: 0.00244556,0.00537171,0.00923855,0.01521374,0.01967868
-    datafile: data/test/kids_test_data.h5
+    nbar: 0.90,1.62,2.28,1.53,1.37  
     nz_file: data/test/kids_nz_data_test.npy
     
 io:     
-    output_dir: demo/output/hsc_kids_256_cosmo
+    datafile: data/test/kids_test_data.h5
+    io_dir: demo/output/hsc_kids_256_cosmo
      
 emulator:
     emu_file: data/test/emu_file.h5

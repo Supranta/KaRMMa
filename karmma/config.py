@@ -9,7 +9,8 @@ class KarmmaConfig:
             config_args = yaml.safe_load(stream)
         self.analysis = self.set_config_analysis(config_args['analysis'])
         self.set_config_io(config_args['io'])
-        
+        self.set_config_mcmc(config_args['mcmc'])
+            
     def set_config_analysis(self, config_args_analysis):
         print("Setting config data....")
         nbins = int(config_args_analysis['nbins'])
@@ -63,3 +64,14 @@ class KarmmaConfig:
                 'g1_obs': g1_obs,
                 'g2_obs': g2_obs,
                 'N': N}
+    
+    def set_config_mcmc(self, config_args_mcmc):
+        self.n_burn_in = config_args_mcmc['n_burn_in']
+        self.n_samples = config_args_mcmc['n_samples']
+        try:            
+            self.prior_only = bool(config_args_mcmc['prior_only'])
+            if(self.prior_only):
+                print("WILL ONLY SAMPLE THE PRIOR!")
+        except:
+            self.prior_only = False
+        

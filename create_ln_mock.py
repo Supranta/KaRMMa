@@ -116,9 +116,9 @@ N_bar = config.analysis['nbar'] * hp.nside2pixarea(nside, degrees=True) * 60**2
 N = []
 for i in range(N_Z_BINS):
     N_i = poisson(N_bar[i]).rvs(hp.nside2npix(nside))
-    N.append(N_i)
+    N.append(N_i * mask_lo)
 N = np.array(N)    
-sigma = 0.261 / np.sqrt(N)
+sigma = config.analysis['sigma_e'] / np.sqrt(N)
 g1_obs = g1 + np.random.standard_normal(sigma.shape) * sigma
 g2_obs = g2 + np.random.standard_normal(sigma.shape) * sigma
 mask = np.ones(hp.nside2npix(nside), dtype=bool)

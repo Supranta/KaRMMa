@@ -14,18 +14,19 @@ import torch
 torch.set_num_threads(8)
 
 configfile = sys.argv[1]
-config = KarmmaConfig(configfile)
+config     = KarmmaConfig(configfile)
 
-nside    = config.config_data['nside']
+nside    = config.analysis['nside']
 gen_lmax = 3 * nside - 1
 lmax     = 2 * nside - 1
 
-N_Z_BINS = config.config_data['nbins']
-shift = config.shift
+N_Z_BINS = config.analysis['nbins']
+shift    = config.analysis['shift']
 
-N_Z_FILE = config.config_io['nz_file']
-nz_data = np.load(N_Z_FILE)
+nz_data  = config.analysis['nz']
+sigma_e  = config.analysis['sigma_e']
 
+"""
 emu_file = config.config_emu['emu_file']
 
 with h5.File(emu_file, 'r') as f:
@@ -39,26 +40,26 @@ cl_emu = ClEmu([train_theta, train_cl], N_PCA)
 print("Training emulator....")
 cl_emu.train_emu()
 print("Done training emulator....")
+"""
+cl     = config.analysis['cl'][:,:,:(gen_lmax + 1)]
+cl_emu = None
 
 #============= Load data =======================
-datafile = config.config_io['datafile']
-with h5.File(datafile, 'r') as f:
-    g1_obs = f['g1_obs'][:]
-    g2_obs = f['g2_obs'][:]
-    mask   = f['mask'][:].astype(bool)
-    N      = f['N'][:]
+g1_obs = config.data['g1_obs']
+g2_obs = config.data['g2_obs']
+mask   = config.data['mask']
+N      = config.data['N']
 
-sigma_e = config.config_data['sigma_e']
-sigma = sigma_e / np.sqrt(N)
+sigma = sigma_e / np.sqrt(N + 1e-25)
+
 #============================================================
+
 print("Initializing sampler....")
-sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, cl, shift, cl_emu, lmax, gen_lmax)
+sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, cl, shift, cl_emu, lmax, gen_lmax, config.prior_only)
+     
 print("Done initializing sampler....")
 
-num_burn = config.config_mcmc['n_burn_in']
-num_samps = config.config_mcmc['n_samples']
-samples = sampler.sample(num_burn, num_samps)
-output_dir = config.config_io['output_dir']
+samples = sampler.sample(config.n_burn_in, config.n_samples)
 
 def x2kappa(xlm_real, xlm_imag):
     kappa_list = []
@@ -71,7 +72,7 @@ def x2kappa(xlm_real, xlm_imag):
 
 for i, (theta, xlm_real, xlm_imag) in enumerate(zip(samples['theta'], samples['xlm_real'], samples['xlm_imag'])):
     kappa = x2kappa(xlm_real, xlm_imag)
-    with h5.File(output_dir + '/sample_%d.h5'%(i), 'w') as f:
+    with h5.File(config.io_dir + '/sample_%d.h5'%(i), 'w') as f:
         f['i']        = i
         f['theta']    = theta
         f['xlm_real'] = xlm_real

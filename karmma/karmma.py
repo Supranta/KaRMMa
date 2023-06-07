@@ -13,7 +13,7 @@ from joblib import Parallel, delayed
 ##==================================
 
 class KarmmaSampler:
-    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, cl, shift, cl_emu, lmax=None, gen_lmax=None):
+    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, cl, shift, cl_emu=None, lmax=None, gen_lmax=None, prior_only=False):
         self.g1_obs = g1_obs       
         self.g2_obs = g2_obs
         #==============================
@@ -32,11 +32,15 @@ class KarmmaSampler:
         self.lmax = 2 * self.nside if not lmax else lmax
         self.gen_lmax = 3 * self.nside - 1 if not gen_lmax else gen_lmax
 
+        self.ell, self.emm = hp.Alm.getlm(self.gen_lmax)
+        
+        self.prior_only = prior_only
         self.compute_lognorm_cl()
 
         theta_fid = np.array([0.233, 0.82])[np.newaxis]
         theta_fid = torch.Tensor(theta_fid).to(torch.double)
-        self.y_cl_fid = self.get_cl_gp(theta_fid)
+#         self.y_cl_fid = self.get_cl_gp(theta_fid)
+        self.y_cl_fid = self.y_cl
         self.tensorize()
 
     def get_cl_gp(self, theta_pred):
@@ -119,7 +123,7 @@ class KarmmaSampler:
     
         return ylm_real + 1j * ylm_imag
     
-    def model(self):
+    def model(self, prior_only=False):
         ell, emm = hp.Alm.getlm(self.gen_lmax)
 
         xlm_real = pyro.sample('xlm_real', dist.Normal(torch.zeros(self.N_Z_BINS, (ell > 1).sum(), dtype=torch.double),
@@ -129,24 +133,26 @@ class KarmmaSampler:
 
         theta = pyro.sample('theta', dist.Normal(torch.Tensor([0.233, 0.82]).to(torch.double), 
                                                   torch.Tensor([0.05, 0.03]).to(torch.double)))
-        xlm = self.get_xlm(xlm_real, xlm_imag)
-        y_cl = self.y_cl
-        ylm = self.apply_cl(xlm, y_cl)
-        for i in range(self.N_Z_BINS):
-            k = torch.exp(self.mu[i] + Alm2Map.apply(ylm[i], self.nside, self.gen_lmax)) - self.shift[i]
-            g1, g2 = conv2shear(k, self.lmax)
+        
+        if not self.prior_only:    
+            xlm = self.get_xlm(xlm_real, xlm_imag)
+            y_cl = self.y_cl
+            ylm = self.apply_cl(xlm, y_cl)
+            for i in range(self.N_Z_BINS):
+                k = torch.exp(self.mu[i] + Alm2Map.apply(ylm[i], self.nside, self.gen_lmax)) - self.shift[i]
+                g1, g2 = conv2shear(k, self.lmax)
 
-            pyro.sample(f'g1_obs_{i}', dist.Normal(g1[self.mask], self.sigma_obs[i,self.mask]), obs=self.g1_obs[i,self.mask])
-            pyro.sample(f'g2_obs_{i}', dist.Normal(g2[self.mask], self.sigma_obs[i,self.mask]), obs=self.g2_obs[i,self.mask])
+                pyro.sample(f'g1_obs_{i}', dist.Normal(g1[self.mask], self.sigma_obs[i,self.mask]), obs=self.g1_obs[i,self.mask])
+                pyro.sample(f'g2_obs_{i}', dist.Normal(g2[self.mask], self.sigma_obs[i,self.mask]), obs=self.g2_obs[i,self.mask])
 
+        
     def sample(self, num_burn, num_samples, kernel=None):
-        ell, emm = hp.Alm.getlm(self.gen_lmax)
         if not kernel:
             kernel = NUTS(self.model, target_accept_prob=0.65)
         mcmc = MCMC(kernel, num_samples=num_samples, warmup_steps=num_burn,
                     initial_params={"theta": torch.Tensor([0.233, 0.82]).to(torch.double), 
-                                    "xlm_real": 0.1 * torch.randn((self.N_Z_BINS, (ell > 1).sum()), dtype=torch.double),
-                                    "xlm_imag": 0.1 * torch.randn((self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum()), dtype=torch.double)})
+                                    "xlm_real": 0.1 * torch.randn((self.N_Z_BINS, (self.ell > 1).sum()), dtype=torch.double),
+                                    "xlm_imag": 0.1 * torch.randn((self.N_Z_BINS, ((self.ell > 1) & (self.emm > 0)).sum()), dtype=torch.double)})
         mcmc.run()
         self.samps = mcmc.get_samples()
 

@@ -1,0 +1,23 @@
+analysis:
+    nbins: 4
+    nside: 256 
+    sigma_e: 0.261
+    shift: 0.00427957,0.00844258,0.01441523,0.01888016
+    nbar: 1.476,1.479,1.484,1.461        
+    nz_file: runs/mocks/LN_mocks/all_modes/desy3_256/data/des_nz.npy
+    cl_file: runs/mocks/LN_mocks/all_modes/desy3_256/data/cl_mean.npy
+    
+io:     
+    datafile: runs/mocks/LN_mocks/all_modes/desy3_256/data/desy3_LN_mock.h5
+    io_dir: runs/mocks/LN_mocks/all_modes/desy3_256/
+    maskfile: runs/mocks/LN_mocks/all_modes/desy3_256/data/desy3_mask.fits
+     
+emulator:
+    emu_file: data/test/emu_file.h5
+    n_pca: 6
+    
+mcmc:
+    n_burn_in: 200
+    n_samples: 200
+    prior_only: false
+    

@@ -136,12 +136,14 @@ def get_mock_data(y_maps):
 
     return g1_obs, g2_obs, k_arr, N 
 
+def save_datafile(g1_obs, g2_obs, k_arr, N):
+    with h5.File(config.datafile, 'w') as f:
+        f['g1_obs'] = g1_obs
+        f['g2_obs'] = g2_obs
+        f['kappa']  = k_arr
+        f['N']      = N    
+        f['mask']   = mask_lo    
+        
 y_maps = get_y_maps()
 g1_obs, g2_obs, k_arr, N = get_mock_data(y_maps)
-
-with h5.File(config.datafile, 'w') as f:
-    f['g1_obs'] = g1_obs
-    f['g2_obs'] = g2_obs
-    f['kappa']  = k_arr
-    f['N']      = N    
-    f['mask']   = mask_lo    
+save_datafile(g1_obs, g2_obs, k_arr, N)

@@ -136,13 +136,33 @@ def get_mock_data(y_maps):
 
     return g1_obs, g2_obs, k_arr, N 
 
+def check_file_exists(filename):
+    import os.path
+    if os.path.isfile(filename):
+        print('DATAFILE ALREADY EXISTS!')
+        return True
+    return False
+    
 def save_datafile(g1_obs, g2_obs, k_arr, N):
-    with h5.File(config.datafile, 'w') as f:
-        f['g1_obs'] = g1_obs
-        f['g2_obs'] = g2_obs
-        f['kappa']  = k_arr
-        f['N']      = N    
-        f['mask']   = mask_lo    
+    file_exists = check_file_exists(config.datafile)
+    overwrite = False
+    if(file_exists):      
+        overwrite_response = input("WE WILL NEED TO OVERWRITE THE EXISTING DATAFILE. ARE YOU SURE YOU WANT TO PROCEED? (y/n)")
+        overwrite_response = overwrite_response.lower()
+        assert overwrite_response in ['y', 'n'], "Invalid response"
+        overwrite = (overwrite_response == 'y')
+        if not overwrite:
+            print("Not overwriting the existing file")
+            return
+    if not file_exists or overwrite:
+        if(file_exists):
+            print("OVERWRITING FILE!")
+        with h5.File(config.datafile, 'w') as f:
+            f['g1_obs'] = g1_obs
+            f['g2_obs'] = g2_obs
+            f['kappa']  = k_arr
+            f['N']      = N    
+            f['mask']   = mask_lo    
         
 y_maps = get_y_maps()
 g1_obs, g2_obs, k_arr, N = get_mock_data(y_maps)

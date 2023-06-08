@@ -50,6 +50,17 @@ g2_obs = config.data['g2_obs']
 mask   = config.data['mask']
 N      = config.data['N']
 
+with h5.File(config.datafile, 'r') as f:
+    if 'kappa' in f:
+        kappa_true = f['kappa'][:]
+        print("WRITING A BACKUP DATA FILE!")
+        with h5.File(config.io_dir + '/data_backup.h5', 'w') as f_write:
+            f_write['g1_obs'] = g1_obs
+            f_write['g2_obs'] = g2_obs
+            f_write['kappa']  = kappa_true
+            f_write['N']      = N    
+            f_write['mask']   = mask           
+
 sigma = sigma_e / np.sqrt(N + 1e-25)
 
 #============================================================

@@ -3,9 +3,6 @@ import numpy as np
 import h5py as h5
 from karmma import KarmmaConfig
 from karmma.utils import *
-# import torch
-
-# torch.set_num_threads(8)
 
 configfile     = sys.argv[1]
 config         = KarmmaConfig(configfile)
@@ -17,6 +14,8 @@ try:
 except:
     calculate_cross_corr = False
     
+rad2arcmin = 180. / np.pi * 60.
+
 nside = config.analysis['nside']
 nbins = config.analysis['nbins']
 mask = config.data['mask']
@@ -49,20 +48,20 @@ def get_summary(sample_id, kappa, summary_type):
 def compute_summary(kappa, mask, summary_type):
     if(summary_type=='corr'):
         summary    = get_corrfunc(kappa, mask, theta_bins)
-        bins       = theta_bins
-        bin_centre = theta_bin_centre
+        bins       = theta_bins * rad2arcmin
+        bin_centre = theta_bin_centre * rad2arcmin
     elif(summary_type=='kappa_pdf'):
         summary    = get_1ptfunc(kappa, kappa_bins) 
         bins       = kappa_bins
-        bin_centre = 0.5 * (kappa_bins[1:] + kappa_bins[:-1])
+        bin_centre = 0.5 * (kappa_bins[:,1:] + kappa_bins[:,:-1])
     elif(summary_type=='pseudo_cl'):
         summary    = get_pseudo_cls(kappa, mask, nmt_ell_bins)
         bins       = ell_bins
         bin_centre = effective_ell
     elif(summary_type=='cross_corr'):
         summary    = get_cross_corr(kappa, kappa_true, mask, theta_bins)
-        bins       = theta_bins
-        bin_centre = theta_bin_centre
+        bins       = theta_bins * rad2arcmin
+        bin_centre = theta_bin_centre * rad2arcmin
     return summary, bins, bin_centre
          
 with h5.File(config.datafile, 'r+') as f:

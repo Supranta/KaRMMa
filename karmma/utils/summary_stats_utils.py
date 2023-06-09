@@ -19,7 +19,7 @@ def get_corrfunc(kappa_maps, mask, bins):
 def get_kappa_bins_1ptfunc(KAPPA_STD_TRUE, nbins, n_kappabins=26):
     kappa_bins = []
     for i in range(nbins):
-        kappa_bins_i = np.linspace(-1.5 * KAPPA_STD_TRUE[i], 3. * KAPPA_STD_TRUE[i], n_kappabins)
+        kappa_bins_i = np.linspace(-2. * KAPPA_STD_TRUE[i], 3. * KAPPA_STD_TRUE[i], n_kappabins)
         kappa_bins.append(kappa_bins_i)
 
     return np.array(kappa_bins)    

@@ -38,7 +38,7 @@ def get_nmt_ell_bins(nside, n_ell_bins=17):
     eff_ell_arr  = nmt_ell_bins.get_effective_ells()
     return nmt_ell_bins, ell_bins, eff_ell_arr
 
-def get_cls(kappa, mask, nmt_ell_bins):
+def get_pseudo_cls(kappa, mask, nmt_ell_bins):
     nbins = kappa.shape[0]
     nmt_kappa_fields = [nmt.NmtField(mask, [kappa[i]]) for i in range(nbins)]
     N_ell = nmt_ell_bins.get_n_bands()
@@ -49,3 +49,15 @@ def get_cls(kappa, mask, nmt_ell_bins):
             cls[i,j] = cl_ij
             cls[j,i] = cl_ij
     return cls
+
+def get_cross_corr(kappa1, kappa2, mask, theta_bins):
+    nbins = kappa1.shape[0]
+    cross_corr_list = []
+    for i in range(nbins):
+        print("Computing cross-corr for bin: %d"%(i+1))
+        kappa_map_corr = np.array([kappa1[i], kappa2[i]])
+        corr = healcorr.compute_corr(kappa_map_corr, mask=mask.astype(bool), bins=theta_bins, premasked=False, cross_correlate=True, verbose=False)
+        cross_corr = corr[0,1]/ np.sqrt(corr[0,0] * corr[1,1])
+        cross_corr_list.append(cross_corr)
+
+    return np.array(cross_corr_list)

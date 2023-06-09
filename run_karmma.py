@@ -48,6 +48,8 @@ g2_obs = config.data['g2_obs']
 mask   = config.data['mask']
 N      = config.data['N']
 
+assert nside==hp.npix2nside(mask.shape[0]), 'Problem with nside!'
+
 with h5.File(config.datafile, 'r') as f:
     if 'kappa' in f:
         kappa_true = f['kappa'][:]

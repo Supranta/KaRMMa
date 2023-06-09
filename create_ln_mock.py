@@ -1,14 +1,10 @@
 import sys
 import numpy as np
 import h5py as h5
-import pyccl
-import healpy as hp
-from karmma import KarmmaSampler, KarmmaConfig, ClEmu
+from karmma import KarmmaSampler, KarmmaConfig
 from karmma.utils import *
-import gpytorch
 import karmma.transforms as trf
 from scipy.stats import norm, poisson
-import matplotlib.pyplot as plt
 import torch
 
 torch.set_num_threads(8)

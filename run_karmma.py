@@ -66,7 +66,7 @@ sigma = sigma_e / np.sqrt(N + 1e-25)
 #============================================================
 
 print("Initializing sampler....")
-sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, cl, shift, cl_emu, lmax, gen_lmax, config.prior_only)
+sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, cl, shift, cl_emu, lmax, gen_lmax)
      
 print("Done initializing sampler....")
 

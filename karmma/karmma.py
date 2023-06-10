@@ -13,12 +13,12 @@ from joblib import Parallel, delayed
 ##==================================
 
 class KarmmaSampler:
-    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, cl, shift, cl_emu=None, lmax=None, gen_lmax=None, prior_only=False):
+    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, cl, shift, cl_emu=None, lmax=None, gen_lmax=None):
         self.g1_obs = g1_obs       
         self.g2_obs = g2_obs
         self.N_Z_BINS = g1_obs.shape[0]
         self.sigma_obs = sigma_obs
-        self.mask = mask
+        self.mask = mask.astype(bool)
         self.cl = cl
         self.cl_emu   = cl_emu
         self.shift    = shift
@@ -32,7 +32,6 @@ class KarmmaSampler:
 
         self.ell, self.emm = hp.Alm.getlm(self.gen_lmax)
         
-        self.prior_only = prior_only
         self.compute_lognorm_cl()
 
         theta_fid = np.array([0.233, 0.82])[np.newaxis]
@@ -129,17 +128,16 @@ class KarmmaSampler:
 
         theta = pyro.sample('theta', dist.Normal(torch.Tensor([0.233, 0.82]).to(torch.double), 
                                                   torch.Tensor([0.05, 0.03]).to(torch.double)))
-        
-        if not self.prior_only:    
-            xlm = self.get_xlm(xlm_real, xlm_imag)
-            y_cl = self.y_cl
-            ylm = self.apply_cl(xlm, y_cl)
-            for i in range(self.N_Z_BINS):
-                k = torch.exp(self.mu[i] + Alm2Map.apply(ylm[i], self.nside, self.gen_lmax)) - self.shift[i]
-                g1, g2 = conv2shear(k, self.lmax)
+          
+        xlm = self.get_xlm(xlm_real, xlm_imag)
+        y_cl = self.y_cl
+        ylm = self.apply_cl(xlm, y_cl)
+        for i in range(self.N_Z_BINS):
+            k = torch.exp(self.mu[i] + Alm2Map.apply(ylm[i], self.nside, self.gen_lmax)) - self.shift[i]
+            g1, g2 = conv2shear(k, self.lmax)
 
-                pyro.sample(f'g1_obs_{i}', dist.Normal(g1[self.mask], self.sigma_obs[i,self.mask]), obs=self.g1_obs[i,self.mask])
-                pyro.sample(f'g2_obs_{i}', dist.Normal(g2[self.mask], self.sigma_obs[i,self.mask]), obs=self.g2_obs[i,self.mask])
+            pyro.sample(f'g1_obs_{i}', dist.Normal(g1[self.mask], self.sigma_obs[i,self.mask]), obs=self.g1_obs[i,self.mask])
+            pyro.sample(f'g2_obs_{i}', dist.Normal(g2[self.mask], self.sigma_obs[i,self.mask]), obs=self.g2_obs[i,self.mask])
 
         
     def sample(self, num_burn, num_samples, kernel=None):

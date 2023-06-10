@@ -68,10 +68,3 @@ class KarmmaConfig:
     def set_config_mcmc(self, config_args_mcmc):
         self.n_burn_in = config_args_mcmc['n_burn_in']
         self.n_samples = config_args_mcmc['n_samples']
-        try:            
-            self.prior_only = bool(config_args_mcmc['prior_only'])
-            if(self.prior_only):
-                print("WILL ONLY SAMPLE THE PRIOR!")
-        except:
-            self.prior_only = False
-        

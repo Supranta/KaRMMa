@@ -17,7 +17,6 @@ emulator:
     n_pca: 6
     
 mcmc:
-    n_burn_in: 200
-    n_samples: 200
-    prior_only: false
+    n_burn_in: 150
+    n_samples: 150
     

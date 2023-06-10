@@ -85,8 +85,7 @@ def generate_mock_y_lm():
     return apply_cl(xlm, tmp.y_cl)
 
 mask    = hp.fitsfunc.read_map(config.maskfile)
-mask_lo = hp.ud_grade(mask, nside)
-boolean_mask = mask_lo.astype(bool)
+boolean_mask = mask.astype(bool)
 
 def get_y_maps():
     y_lm = generate_mock_y_lm()
@@ -107,8 +106,8 @@ def get_mock_data(y_maps):
             k = get_filtered_map(k, lowpass_ell_filter, nside)
         k_list.append(k)
         g1, g2 = trf.conv2shear(torch.tensor(k), lmax)
-        g1 = g1.numpy() * mask_lo
-        g2 = g2.numpy() * mask_lo
+        g1 = g1.numpy() * mask
+        g2 = g2.numpy() * mask
         g1_list.append(g1)
         g2_list.append(g2)    
 
@@ -120,14 +119,14 @@ def get_mock_data(y_maps):
     N = []
     for i in range(N_Z_BINS):
         N_i = poisson(N_bar[i]).rvs(hp.nside2npix(nside))
-        N.append(N_i * mask_lo)
+        N.append(N_i * mask)
     N = np.array(N)
 
     sigma = config.analysis['sigma_e'] / np.sqrt(N + 1e-25)
     g1_obs = g1 + np.random.standard_normal(sigma.shape) * sigma
     g2_obs = g2 + np.random.standard_normal(sigma.shape) * sigma
-    g1_obs = g1_obs * mask_lo
-    g2_obs = g2_obs * mask_lo    
+    g1_obs = g1_obs * mask
+    g2_obs = g2_obs * mask    
     k_arr  = np.array(k_list)
 
     return g1_obs, g2_obs, k_arr, N 
@@ -158,7 +157,7 @@ def save_datafile(g1_obs, g2_obs, k_arr, N):
             f['g2_obs'] = g2_obs
             f['kappa']  = k_arr
             f['N']      = N    
-            f['mask']   = mask_lo    
+            f['mask']   = mask    
         
 y_maps = get_y_maps()
 g1_obs, g2_obs, k_arr, N = get_mock_data(y_maps)

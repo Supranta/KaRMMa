@@ -13,6 +13,13 @@ config     = KarmmaConfig(configfile)
 
 mock_id = int(sys.argv[2])
 
+try:
+    lowpass_filter = bool(sys.argv[2])
+    if(lowpass_filter):
+        print("CREATING LOW-PASS FILTERED MAPS!")
+except:
+    lowpass_filter = False
+
 nside    = config.analysis['nside']
 nbins    = config.analysis['nbins']
 gen_lmax = 3 * nside - 1
@@ -39,26 +46,47 @@ def get_nz_convolved_maps(mock, hsc_z_slice_weights, nbins):
 
 nz_convolved_maps = get_nz_convolved_maps(mock, hsc_z_slice_weights, nbins)
 
-def get_downgraded_maps(nz_convolved_maps, nside, nbins):
+def get_downgraded_maps(nz_convolved_maps, nside, nbins, lowpass_filter=False, ell_max_filter=None):
     k_list = []
     g1_list = []
     g2_list = []
-    
+
     for i in range(nbins):
-        k_i = hp.ud_grade(nz_convolved_maps[i,0], nside)
-        g1_i = hp.ud_grade(nz_convolved_maps[i,1], nside)
-        g2_i = hp.ud_grade(nz_convolved_maps[i,2], nside)
-    
+        if(lowpass_filter):
+            k_i = get_filtered_map(nz_convolved_maps[i,0], ell_max_filter, nside)
+            g1_i = get_filtered_map(nz_convolved_maps[i,1], ell_max_filter, nside)
+            g2_i = get_filtered_map(nz_convolved_maps[i,2], ell_max_filter, nside)
+        else:
+            k_i = hp.ud_grade(nz_convolved_maps[i,0], nside)
+            g1_i = hp.ud_grade(nz_convolved_maps[i,1], nside)
+            g2_i = hp.ud_grade(nz_convolved_maps[i,2], nside)
+
         k_list.append(k_i)
         g1_list.append(g1_i)
         g2_list.append(g2_i)
-        
-    return np.array(k_list), np.array(g1_list), np.array(g2_list)
 
-k, g1, g2 = get_downgraded_maps(nz_convolved_maps, nside, nbins)
+    return np.array(k_list), np.array(g1_list), np.array(g2_list)
 
 mask    = hp.fitsfunc.read_map(config.maskfile)
 
-data              = [config.analysis['nbar'], config.analysis['sigma_e'], g1, g2, mask]
-g1_obs, g2_obs, N = get_mock_data(nside, nbins, data)   
+if lowpass_filter:
+    print("Getting low-pass maps...")
+    gen_lmax = 3 * 2048 - 1
+    ell, emm = hp.Alm.getlm(gen_lmax)
+    ell_max_filter = (ell <= 2 * nside)
+    k, g1, g2 = get_downgraded_maps(nz_convolved_maps, nside, nbins, lowpass_filter, ell_max_filter)
+    data              = [config.analysis['nbar'], config.analysis['sigma_e'], g1, g2, mask]
+    g1_obs, g2_obs, N = get_mock_data(nside, nbins, data)   
+else:
+    print("Getting all-modes maps...")
+    k, g1, g2 = get_downgraded_maps(nz_convolved_maps, 1024, nbins)
+    data      = [config.analysis['nbar'], config.analysis['sigma_e'], g1, g2, mask]
+
+    g1_obs_hires, g2_obs_hires, N_hires = get_mock_data(1024, nbins, data)    
+    nz_convolved_maps_1024 = np.stack([k, g1_obs_hires, g1_obs_hires], axis=1)
+
+    k, g1_obs, g2_obs      = get_downgraded_maps(nz_convolved_maps_1024, nside, nbins)    
+    N    = hp.ud_grade(N_hires, nside, power=-2)
+    mask = hp.ud_grade(mask, nside)
+    
 save_datafile(config.datafile, g1_obs, g2_obs, k, N, mask)

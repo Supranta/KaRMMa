@@ -31,7 +31,7 @@ def get_cl(Omega_c, sigma_8, nz_data, N_Z_BINS, gen_lmax):
 def get_filtered_map(hp_map, ell_filter, nside):
     a_lm = hp.sphtfunc.map2alm(hp_map)    
 
-    a_lm[ell_filter].real = 0.
-    a_lm[ell_filter].imag = 0.
+    a_lm[~ell_filter].real = 0.
+    a_lm[~ell_filter].imag = 0.
 
     return hp.sphtfunc.alm2map(a_lm, nside)    

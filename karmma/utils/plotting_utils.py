@@ -38,7 +38,7 @@ def get_proj_data():
     
     return [proj, ra, dec]
 
-def plot_map_skm(ax, kappa_map, mask, text, proj_data, minmax=None, cmap='viridis', sep=15):
+def plot_map_skm(ax, kappa_map, mask, text, proj_data, minmax=None, cmap='viridis', sep=15, nomask=False, cb_label="$\\kappa$"):
     proj, ra, dec = proj_data
     boolean_mask = mask.astype(bool)
     if minmax is None:
@@ -47,8 +47,11 @@ def plot_map_skm(ax, kappa_map, mask, text, proj_data, minmax=None, cmap='viridi
         vmin, vmax = minmax
     map = skm.Map(proj, ax=ax)
     map.grid(sep=sep, parallel_fmt=lambda x: '', meridian_fmt=lambda x: '')
-    mappable = map.healpix(kappa_map * mask, vmin=vmin, vmax=vmax, cmap=cmap)  
-    cb = map.colorbar(mappable, cb_label="$\\kappa$")
+    if nomask:
+        mappable = map.healpix(kappa_map, vmin=vmin, vmax=vmax, cmap=cmap)  
+    else:
+        mappable = map.healpix(kappa_map * mask, vmin=vmin, vmax=vmax, cmap=cmap)  
+    cb = map.colorbar(mappable, cb_label=cb_label)
     map.text(340, 10, text, 0)
     map.focus(ra, dec)
     
@@ -118,8 +121,10 @@ def plot_crosscorr(nbins, theta_bincentre, crosscorr_arr, savename=None):
     fig, ax = plt.subplots(1,nbins,figsize=(3.*nbins,3.))
 
     for i in range(nbins):
+        ax[i].set_title('Tomographic bin %d'%(i+1))
         ax[i].set_xlabel(r'$\theta$ (arcmin)')
         ax[i].set_ylabel(r'$\rho_c(\theta)$')
+        ax[i].set_ylim(0.4, 1.1)
         ax[i].semilogx(theta_bincentre, crosscorr_mean[i], 'b-')
         ax[i].fill_between(theta_bincentre, crosscorr_lo[i], crosscorr_hi[i], color='b', alpha=0.3)
     plt.tight_layout()

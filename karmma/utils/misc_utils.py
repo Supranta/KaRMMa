@@ -31,7 +31,39 @@ def get_cl(Omega_c, sigma_8, nz_data, N_Z_BINS, gen_lmax):
 def get_filtered_map(hp_map, ell_filter, nside):
     a_lm = hp.sphtfunc.map2alm(hp_map)    
 
-    a_lm[~ell_filter].real = 0.
-    a_lm[~ell_filter].imag = 0.
+    alm_real = a_lm.real * ell_filter
+    alm_imag = a_lm.real * ell_filter
 
+    a_lm = alm_real + 1j * alm_imag
     return hp.sphtfunc.alm2map(a_lm, nside)    
+
+def fit_lognormal_pars(kappa_maps):
+    nbins = kappa_maps.shape[0]
+    
+    def logP(theta, x):
+        λ, σ2 = theta
+        if (λ < 0.) or (σ2 < 0.):
+            return np.inf
+        z = np.log(x + λ)
+        μ = np.log(λ) - 0.5 * σ2
+        logL = np.sum(-0.5 * (z - μ)**2 / σ2 - 0.5 * np.log(σ2) - z)
+        if np.isnan(logL):
+            return np.inf
+        return -logL
+    
+    σ2     = np.std(kappa_maps[0])
+    shift0 = -2. * kappa_maps[0].min()
+    σg2    = np.log(1. + σ2 / shift0**2)
+
+    theta0 = np.array([shift0, σg2])
+    
+    from scipy.optimize import minimize
+
+    x_opt_list = []
+    for i in range(nbins):
+        print("i: %d"%(i))
+        results = minimize(logP, theta0, args=(kappa_maps[i]), method='Powell')
+        print("Optimal parameters: "+str(results['x']))
+        x_opt_list.append(results['x'])
+
+    return np.array(x_opt_list)    

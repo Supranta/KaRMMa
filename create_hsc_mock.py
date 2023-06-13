@@ -52,6 +52,7 @@ def get_downgraded_maps(nz_convolved_maps, nside, nbins, lowpass_filter=False, e
     g2_list = []
 
     for i in range(nbins):
+        print("Creating downgraded maps for bin # %d"%(i+1))
         if(lowpass_filter):
             k_i = get_filtered_map(nz_convolved_maps[i,0], ell_max_filter, nside)
             g1_i = get_filtered_map(nz_convolved_maps[i,1], ell_max_filter, nside)

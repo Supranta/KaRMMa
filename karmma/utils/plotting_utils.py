@@ -104,11 +104,12 @@ def plot_1pt_pdf(nbins, kappa_bincentre, kappapdf_arr, kappa_pdf_true, savename=
             ax[j,i].set_xlabel('$\kappa$')
             ax[j,i].set_ylabel('$P(\kappa)$')
             ax[j,i].plot(kappa_bincentre[i], kappapdf_mean[i],  'b-')    
-            ax[j,i].fill_between(kappa_bincentre[i], kappapdf_lo[i], kappapdf_hi[i], color='b', alpha=0.3)
-            ax[j,i].plot(kappa_bincentre[i], kappa_pdf_true[i], 'k-')
+            ax[j,i].fill_between(kappa_bincentre[i], kappapdf_lo[i], kappapdf_hi[i], color='b', alpha=0.3, label=r'$\texttt{KaRMMa}$')
+            ax[j,i].plot(kappa_bincentre[i], kappa_pdf_true[i], 'k-', label='Truth')
 
         ax[1,i].set_yscale('log')       
 
+    ax[1,0].legend()
     plt.tight_layout()
     if savename is not None:
         plt.savefig(savename, dpi=150.)

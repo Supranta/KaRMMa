@@ -13,7 +13,7 @@ from joblib import Parallel, delayed
 ##==================================
 
 class KarmmaSampler:
-    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, cl, shift, cl_emu=None, lmax=None, gen_lmax=None):
+    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, cl, shift, vargauss, cl_emu=None, lmax=None, gen_lmax=None):
         self.g1_obs = g1_obs       
         self.g2_obs = g2_obs
         self.N_Z_BINS = g1_obs.shape[0]
@@ -22,6 +22,8 @@ class KarmmaSampler:
         self.cl = cl
         self.cl_emu   = cl_emu
         self.shift    = shift
+        self.vargauss = vargauss
+
         self.y_cl     = np.zeros_like(cl)
         
         self.mu = np.zeros(self.N_Z_BINS)
@@ -29,7 +31,7 @@ class KarmmaSampler:
         self.nside = hp.get_nside(self.g1_obs)
         self.lmax = 2 * self.nside if not lmax else lmax
         self.gen_lmax = 3 * self.nside - 1 if not gen_lmax else gen_lmax
-
+        
         self.ell, self.emm = hp.Alm.getlm(self.gen_lmax)
         
         self.compute_lognorm_cl()
@@ -64,11 +66,8 @@ class KarmmaSampler:
         mu, w = np.polynomial.legendre.leggauss(order * self.gen_lmax)
         
         print("Computing mu/sigma2....")
-        for i in range(self.N_Z_BINS):
-            print("z-bin i: %d"%(i))
-            xi0 = np.polynomial.legendre.legval(1, (2 * np.arange(self.gen_lmax + 1) + 1) * self.cl[i,i]) / (4 * np.pi)
-            sigma2 = np.log(xi0 / (self.shift[i] ** 2) + 1)            
-            self.mu[i] = np.log(self.shift[i]) - 0.5 * sigma2            
+        for i in range(self.N_Z_BINS):           
+            self.mu[i] = np.log(self.shift[i]) - 0.5 * self.vargauss[i]            
         
         print("Computing y_cl...")
         for i in range(self.N_Z_BINS):    

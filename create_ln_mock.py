@@ -26,6 +26,7 @@ lmax     = 2 * nside - 1
 
 # N_Z_BINS = config.analysis['nbins']
 shift    = config.analysis['shift']
+vargauss = config.analysis['vargauss']
 
 nz_data  = config.analysis['nz']
 sigma_e  = config.analysis['sigma_e']
@@ -36,7 +37,7 @@ cl_emu = None
 #============================================================
 print("Initializing sampler....")
 tmp = np.zeros((nbins,hp.nside2npix(nside)))
-tmp = KarmmaSampler(tmp, tmp, tmp, tmp, cl, shift, cl_emu, lmax, gen_lmax)
+tmp = KarmmaSampler(tmp, tmp, tmp, tmp, cl, shift, vargauss, cl_emu, lmax, gen_lmax)
 print("Done initializing sampler....")
 
 ell, emm = hp.Alm.getlm(gen_lmax)

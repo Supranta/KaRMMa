@@ -20,6 +20,9 @@ class KarmmaConfig:
         split_shift = config_args_analysis['shift'].split(',')
         shift = np.array([float(shift) for shift in split_shift])
         
+        split_vargauss = config_args_analysis['vargauss'].split(',')
+        vargauss = np.array([float(vargauss) for vargauss in split_vargauss])
+        
         split_nbar = config_args_analysis['nbar'].split(',')
         nbar = np.array([float(nbar) for nbar in split_nbar])
         
@@ -30,6 +33,7 @@ class KarmmaConfig:
                      'nside': nside, 
                      'sigma_e': sigma_e, 
                      'shift': shift,
+                     'vargauss': vargauss,
                      'nbar': nbar,
                      'nz': nz,
                      'cl': cl

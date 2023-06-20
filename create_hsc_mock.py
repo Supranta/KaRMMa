@@ -11,14 +11,14 @@ torch.set_num_threads(8)
 configfile = sys.argv[1]
 config     = KarmmaConfig(configfile)
 
-mock_id = int(sys.argv[2])
-
 try:
-    lowpass_filter = bool(sys.argv[3])
+    lowpass_filter = bool(sys.argv[2])
     if(lowpass_filter):
         print("CREATING LOW-PASS FILTERED MAPS!")
 except:
     lowpass_filter = False
+
+rad2arcmin = 180. / np.pi * 60.
 
 nside    = config.analysis['nside']
 nbins    = config.analysis['nbins']
@@ -31,8 +31,6 @@ shift    = config.analysis['shift']
 nz_data  = config.analysis['nz']
 sigma_e  = config.analysis['sigma_e']
 
-mock = np.load('/spiff/pierfied/Simulations/HSC_Mocks_Full/mocks/mock_%d.npy'%(mock_id))
-
 nz_interpolators = get_nz_interpolators(nz_data, nbins)
 hsc_z_slice_weights = get_hsc_z_slice_weights(nz_interpolators, nbins)
 
@@ -43,8 +41,6 @@ def get_nz_convolved_maps(mock, hsc_z_slice_weights, nbins):
         data_bin_i = np.sum(hsc_z_slice_weights[i][:,np.newaxis,np.newaxis] * mock, axis=0)
         data.append(data_bin_i)        
     return np.array(data)
-
-nz_convolved_maps = get_nz_convolved_maps(mock, hsc_z_slice_weights, nbins)
 
 def get_downgraded_maps(nz_convolved_maps, nside, nbins, lowpass_filter=False, ell_max_filter=None):
     k_list = []
@@ -70,23 +66,43 @@ def get_downgraded_maps(nz_convolved_maps, nside, nbins, lowpass_filter=False, e
 
 mask    = hp.fitsfunc.read_map(config.maskfile)
 
-if lowpass_filter:
-    print("Getting low-pass maps...")
-    ell, emm = hp.Alm.getlm(3 * 2048 - 1)
-    ell_max_filter = (ell <= 2 * nside).astype(float)
-    k, g1, g2 = get_downgraded_maps(nz_convolved_maps, nside, nbins, lowpass_filter, ell_max_filter)
-    data              = [config.analysis['nbar'], config.analysis['sigma_e'], -g1, -g2, mask]
-    g1_obs, g2_obs, N = get_mock_data(nside, nbins, data)   
-else:
-    print("Getting all-modes maps...")
-    k, g1, g2 = get_downgraded_maps(nz_convolved_maps, 1024, nbins)
-    data      = [config.analysis['nbar'], config.analysis['sigma_e'], -g1, -g2, mask]
+with h5.File(config.datafile, 'r') as f:
+    kappa_true = f['kappa'][:]
+    mask_data  = f['mask'][:]
 
-    g1_obs_hires, g2_obs_hires, N_hires = get_mock_data(1024, nbins, data)    
-    nz_convolved_maps_1024 = np.stack([k, g1_obs_hires, g1_obs_hires], axis=1)
+KAPPA_STD_TRUE = kappa_true[:,mask_data.astype(bool)].std(1)    
 
-    k, g1_obs, g2_obs      = get_downgraded_maps(nz_convolved_maps_1024, nside, nbins)    
-    N    = hp.ud_grade(N_hires, nside, power=-2)
-    mask = hp.ud_grade(mask, nside)
-    
-save_datafile(config.datafile, g1_obs, g2_obs, k, N, mask)
+theta_bins, theta_bin_centre          = get_theta_bins(nside)
+kappa_bins                            = get_kappa_bins_1ptfunc(KAPPA_STD_TRUE, nbins)
+nmt_ell_bins, ell_bins, effective_ell = get_nmt_ell_bins(nside)
+
+for mock_id in range(108):
+    print("=========================")
+    print("mock_id: %d"%(mock_id))
+    print("=========================")
+    mock = np.load('/spiff/pierfied/Simulations/HSC_Mocks_Full/mocks/mock_%d.npy'%(mock_id))
+    nz_convolved_maps = get_nz_convolved_maps(mock, hsc_z_slice_weights, nbins)
+    if lowpass_filter:
+        print("Getting low-pass maps...")
+        ell, emm = hp.Alm.getlm(3 * 2048 - 1)
+        ell_max_filter = (ell <= 2 * nside).astype(float)
+        k, g1, g2 = get_downgraded_maps(nz_convolved_maps, nside, nbins, lowpass_filter, ell_max_filter)
+        data              = [config.analysis['nbar'], config.analysis['sigma_e'], -g1, -g2, mask]
+        g1_obs, g2_obs, N = get_mock_data(nside, nbins, data)
+        datafile = 'data/HSC_mocks/des_y3_mock/all_mocks/low_pass/mock_%d.h5'%(mock_id)
+    else:
+        print("Getting high-frequency maps...")
+        mask      = hp.fitsfunc.read_map(config.maskfile)
+        k, g1, g2 = get_downgraded_maps(nz_convolved_maps, 1024, nbins)
+        data      = [config.analysis['nbar'], config.analysis['sigma_e'], -g1, -g2, mask]
+
+        g1_obs_hires, g2_obs_hires, N_hires = get_mock_data(1024, nbins, data)    
+        nz_convolved_maps_1024 = np.stack([k, g1_obs_hires, g2_obs_hires], axis=1)
+
+        k, g1_obs, g2_obs = get_downgraded_maps(nz_convolved_maps_1024, nside, nbins)    
+        N                 = hp.ud_grade(N_hires, nside, power=-2)
+        mask = hp.ud_grade(mask, nside)
+        
+        datafile = 'data/HSC_mocks/des_y3_mock/all_mocks/high_frequency/mock_%d.h5'%(mock_id)
+       
+    save_datafile(datafile, g1_obs, g2_obs, k, N, mask)

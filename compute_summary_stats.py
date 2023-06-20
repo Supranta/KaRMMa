@@ -3,6 +3,7 @@ import numpy as np
 import h5py as h5
 from karmma import KarmmaConfig
 from karmma.utils import *
+from mpi4py import MPI
 
 configfile     = sys.argv[1]
 config         = KarmmaConfig(configfile)
@@ -13,7 +14,15 @@ try:
         print("WILL COMPUTE CROSS-CORRELATION!!")
 except:
     calculate_cross_corr = False
-    
+
+comm = MPI.COMM_WORLD
+# Get the rank of the current process
+rank = comm.Get_rank()
+# Get the total number of processes
+size = comm.Get_size()
+
+print("rank: %d, size: %d"%(rank, size))
+
 rad2arcmin = 180. / np.pi * 60.
 
 nside = config.analysis['nside']
@@ -63,14 +72,21 @@ def compute_summary(kappa, mask, summary_type):
         bins       = theta_bins * rad2arcmin
         bin_centre = theta_bin_centre * rad2arcmin
     return summary, bins, bin_centre
-         
-with h5.File(config.datafile, 'r+') as f:
-    kappa = f['kappa'][:]
-    get_summary(None, kappa, 'corr')
-    get_summary(None, kappa, 'kappa_pdf')
-    get_summary(None, kappa, 'pseudo_cl')
-    
-for i in range(config.n_samples):
+
+if rank == 0:
+    with h5.File(config.datafile, 'r+') as f:
+        kappa = f['kappa'][:]
+        get_summary(None, kappa, 'corr')
+        get_summary(None, kappa, 'kappa_pdf')
+        get_summary(None, kappa, 'pseudo_cl')
+
+# Calculate the number of iterations per process
+iterations_per_process = config.n_samples // size
+# Calculate the start and end indices for this process
+start_index = rank * iterations_per_process
+end_index = start_index + iterations_per_process
+
+for i in range(start_index,end_index):
     print("i: %d"%(i))
     with h5.File(config.io_dir + '/sample_%d.h5'%(i), 'r+') as f:
         kappa = f['kappa'][:]

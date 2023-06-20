@@ -52,7 +52,7 @@ def plot_map_skm(ax, kappa_map, mask, text, proj_data, minmax=None, cmap='viridi
     else:
         mappable = map.healpix(kappa_map * mask, vmin=vmin, vmax=vmax, cmap=cmap)  
     cb = map.colorbar(mappable, cb_label=cb_label)
-    map.text(340, 10, text, 0)
+    map.text(350, -25, text, 0)
     map.focus(ra, dec)
     
 def plot_corr_cl(nbins, sample_summaries, true_summaries, bincentre, savename=None):
@@ -73,21 +73,56 @@ def plot_corr_cl(nbins, sample_summaries, true_summaries, bincentre, savename=No
 
     for i in range(nbins):
         for j in range(nbins):        
-            if not (i <= j-1):
-                ax[i+1,j].set_xlabel(r'$\theta$ (arcmin)')
-                ax[i+1,j].set_ylabel(r'$\xi_{%d%d}(\theta)$'%(j+1,i+1))
+            if not (i <= j-1):                                               
                 ax[i+1,j].loglog(theta_bincentre, corr_true[i,j], 'k-', label='True')
-                ax[i+1,j].loglog(theta_bincentre, corr_mean[i,j], 'b-', label='Sample')
+                ax[i+1,j].loglog(theta_bincentre, corr_mean[i,j], 'b-', label=r'$\texttt{KaRMMa}$')
                 ax[i+1,j].fill_between(theta_bincentre, corr_lo[i,j], corr_hi[i,j], color='b', alpha=0.3)
+                #============================
+                ax[i+1,j].set_ylim(4e-8, 4e-5)
+                ax[i+1,j].set_xlim(10., 300.)
+                ax[i+1,j].text(0.75, 0.85, r'$\xi_{%d%d}$'%(i+1,j+1), ha='left', va='bottom', transform=ax[i+1,j].transAxes, fontsize=11)
+                if(j==0):                    
+                    ax[i+1,j].set_ylabel(r'$\xi(\theta)$')
+                else:
+                    ax[i+1,j].set_yticklabels([])
+                    ax[i+1,j].set_ylabel('')
+                if(i==nbins-1):
+                    ax[i+1,j].set_xlabel(r'$\theta$ (arcmin)')
+                else:
+                    ax[i+1,j].set_xticklabels([])
+                    ax[i+1,j].set_xlabel('')
+                #============================ 
             if not (j <= i-1):
-                ax[i,j+1].set_xlabel(r'$\ell$')
-                ax[i,j+1].set_ylabel(r'$C_{%d%d}(\ell)$'%(i+1,j+1))
+                #============================ 
+                ax[i,j+1].tick_params(axis='y', labelright=True, labelleft=False)
+                ax[i,j+1].yaxis.set_label_position('right')
+                ax[i,j+1].tick_params(axis='x', labeltop=True, labelbottom=False)                
+                ax[i,j+1].xaxis.set_label_position('top')
+                ax[i,j+1].tick_params(right=True, top=True)
+                ax[i,j+1].tick_params(which='minor', right=True, top=True)
+                #============================ 
+                ax[i,j+1].set_ylim(7e-11, 1e-7)
+                ax[i,j+1].set_xlim(4., 512)
+                ax[i,j+1].text(0.75, 0.85, r'$C_{%d%d}^{\ell}$'%(i+1,j+1), ha='left', va='bottom', transform=ax[i,j+1].transAxes, fontsize=11)
                 ax[i,j+1].loglog(ell_bincentre, pseudocl_true[i,j], 'k-', label='True')
-                ax[i,j+1].loglog(ell_bincentre, pseudocl_mean[i,j], 'b-', label='Sample')    
+                ax[i,j+1].loglog(ell_bincentre, pseudocl_mean[i,j], 'b-', label='$\texttt{KaRMMa}$')    
                 ax[i,j+1].fill_between(ell_bincentre, pseudocl_lo[i,j], pseudocl_hi[i,j], color='b', alpha=0.3)
-    ax[1,0].legend()
+                #============================ 
+                if(j==nbins-1):
+                    ax[i,j+1].set_ylabel(r'$C(\ell)$')
+                else:
+                    ax[i,j+1].set_yticklabels([])
+                    ax[i,j+1].set_ylabel('')
+                if(i==0):
+                    ax[i,j+1].set_xlabel(r'$\ell$')   
+                else:
+                    ax[i,j+1].set_xticklabels([])
+                    ax[i,j+1].set_xlabel('')
+                    
+                #============================ 
+    ax[1,0].legend(loc='lower left')
     
-    plt.tight_layout()
+    plt.tight_layout(pad=1, w_pad=1, h_pad=1)
     
     if savename is not None:
         plt.savefig(savename, dpi=150.)

@@ -29,6 +29,11 @@ class KarmmaConfig:
         nz = np.load(config_args_analysis['nz_file'])
         cl = np.load(config_args_analysis['cl_file'])
         
+        try:
+            lmax_filter = config_args_analysis['lmax_filter']
+        except:
+            lmax_filter = False
+            
         data_dict = {'nbins': nbins, 
                      'nside': nside, 
                      'sigma_e': sigma_e, 
@@ -36,7 +41,8 @@ class KarmmaConfig:
                      'vargauss': vargauss,
                      'nbar': nbar,
                      'nz': nz,
-                     'cl': cl
+                     'cl': cl,
+                     'lmax_filter': lmax_filter
                     }
 
         return data_dict

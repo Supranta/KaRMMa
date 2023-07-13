@@ -15,8 +15,14 @@ configfile = sys.argv[1]
 config     = KarmmaConfig(configfile)
 
 nside    = config.analysis['nside']
-gen_lmax = 3 * nside - 1
+
 lmax     = 2 * nside - 1
+lmax_filter = config.analysis['lmax_filter']
+if(lmax_filter):
+    print("WARNING: Using lmax filter in the forward model.")
+    gen_lmax = lmax
+else:
+    gen_lmax = 3 * nside - 1
 
 N_Z_BINS = config.analysis['nbins']
 shift    = config.analysis['shift']

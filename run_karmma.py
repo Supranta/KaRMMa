@@ -82,7 +82,7 @@ samples = sampler.sample(config.n_burn_in, config.n_samples)
 def x2kappa(xlm_real, xlm_imag):
     kappa_list = []
     xlm = sampler.get_xlm(xlm_real, xlm_imag)
-    ylm = sampler.apply_cl(xlm, sampler.y_cl)
+    ylm = sampler.apply_cl(xlm)
     for i in range(N_Z_BINS):
         k = torch.exp(sampler.mu[i] + trf.Alm2Map.apply(ylm[i], nside, gen_lmax)) - sampler.shift[i]
         kappa_list.append(k.numpy())

@@ -1,5 +1,6 @@
 import sys
-sys.path.append('/home/ssarmabo/karmic_harmonies/healcorr')
+#sys.path.append('/home/ssarmabo/karmic_harmonies/healcorr')
+sys.path.append('/groups/erozo/ssarmabo/softs/healcorr/')
 import numpy as np
 import healpy as hp
 import pymaster as nmt

@@ -156,10 +156,13 @@ def shear2conv(g1, g2, lmax=None):
     return k
 
 
-def conv2shear(k, lmax=None):
+def conv2shear(k, lmax=None, pixwin=None):
     nside = hp.npix2nside(len(k))
 
     kelm = Map2Alm.apply(k, lmax)
+
+    if pixwin is not None:
+        kelm = kelm * pixwin
 
     lmax = hp.Alm.getlmax(len(kelm))
     l, m = hp.Alm.getlm(lmax)

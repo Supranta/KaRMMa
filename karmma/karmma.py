@@ -13,7 +13,7 @@ from joblib import Parallel, delayed
 ##==================================
 
 class KarmmaSampler:
-    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, cl, shift, vargauss, cl_emu=None, lmax=None, gen_lmax=None):
+    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, cl, shift, vargauss, cl_emu=None, lmax=None, gen_lmax=None, pixwin=None):
         self.g1_obs = g1_obs       
         self.g2_obs = g2_obs
         self.N_Z_BINS = g1_obs.shape[0]
@@ -33,7 +33,22 @@ class KarmmaSampler:
         self.gen_lmax = 3 * self.nside - 1 if not gen_lmax else gen_lmax
         
         self.ell, self.emm = hp.Alm.getlm(self.gen_lmax)
-        
+       
+        if pixwin is not None:
+            print("Using healpix pixel window function.")
+            from scipy.interpolate import interp1d
+
+            ell_pixwin, _ = hp.Alm.getlm(self.lmax)
+            if pixwin=='healpix':
+                pixwin = hp.sphtfunc.pixwin(self.nside, lmax=self.gen_lmax)
+            else:
+                pixwin = pixwin
+            pixwin_interp = interp1d(np.arange(len(pixwin)), pixwin)
+            pixwin_ell_filter = pixwin_interp(ell_pixwin)
+            self.pixwin_ell_filter = torch.tensor(pixwin_ell_filter)
+        else:
+            self.pixwin_ell_filter = None
+
         self.compute_lognorm_cl()
 
         theta_fid = np.array([0.233, 0.82])[np.newaxis]
@@ -133,7 +148,7 @@ class KarmmaSampler:
         ylm = self.apply_cl(xlm, y_cl)
         for i in range(self.N_Z_BINS):
             k = torch.exp(self.mu[i] + Alm2Map.apply(ylm[i], self.nside, self.gen_lmax)) - self.shift[i]
-            g1, g2 = conv2shear(k, self.lmax)
+            g1, g2 = conv2shear(k, self.lmax, self.pixwin_ell_filter)
 
             pyro.sample(f'g1_obs_{i}', dist.Normal(g1[self.mask], self.sigma_obs[i,self.mask]), obs=self.g1_obs[i,self.mask])
             pyro.sample(f'g2_obs_{i}', dist.Normal(g2[self.mask], self.sigma_obs[i,self.mask]), obs=self.g2_obs[i,self.mask])

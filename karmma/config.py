@@ -28,7 +28,13 @@ class KarmmaConfig:
         
         nz = np.load(config_args_analysis['nz_file'])
         cl = np.load(config_args_analysis['cl_file'])
-        
+       
+        try:
+            pixwin = np.load(config_args_analysis['pixwin'])
+            print("USING EMPIRICAL WINDOW FUNCTION!")
+        except:
+            pixwin='healpix'
+
         data_dict = {'nbins': nbins, 
                      'nside': nside, 
                      'sigma_e': sigma_e, 
@@ -36,7 +42,8 @@ class KarmmaConfig:
                      'vargauss': vargauss,
                      'nbar': nbar,
                      'nz': nz,
-                     'cl': cl
+                     'cl': cl,
+                     'pixwin': pixwin
                     }
 
         return data_dict

@@ -42,6 +42,7 @@ print("Done training emulator....")
 """
 cl     = config.analysis['cl'][:,:,:(gen_lmax + 1)]
 cl_emu = None
+pixwin = config.analysis['pixwin']
 
 #============= Load data =======================
 g1_obs = config.data['g1_obs']
@@ -51,23 +52,12 @@ N      = config.data['N']
 
 assert nside==hp.npix2nside(mask.shape[0]), 'Problem with nside!'
 
-with h5.File(config.datafile, 'r') as f:
-    if 'kappa' in f:
-        kappa_true = f['kappa'][:]
-        print("WRITING A BACKUP DATA FILE!")
-        with h5.File(config.io_dir + '/data_backup.h5', 'w') as f_write:
-            f_write['g1_obs'] = g1_obs
-            f_write['g2_obs'] = g2_obs
-            f_write['kappa']  = kappa_true
-            f_write['N']      = N    
-            f_write['mask']   = mask           
-
 sigma = sigma_e / np.sqrt(N + 1e-25)
 
 #============================================================
 
 print("Initializing sampler....")
-sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, cl, shift, vargauss, cl_emu, lmax, gen_lmax)
+sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, cl, shift, vargauss, cl_emu, lmax, gen_lmax, pixwin=pixwin)
      
 print("Done initializing sampler....")
 

@@ -41,10 +41,6 @@ class KarmmaSampler:
 #         self.y_cl_fid = self.get_cl_gp(theta_fid)
         self.y_cl_fid = self.y_cl
         self.tensorize()
-       
-        L = torch.linalg.cholesky(self.y_cl.T).T
-        self.L_arr = torch.swapaxes(L[:,:,self.ell[self.ell > -1]], 0,1)
-        self.SQRT_2 = torch.sqrt(torch.tensor([2.]))
 
     def get_cl_gp(self, theta_pred):
         log_cl_pred = self.cl_emu.pca_mean
@@ -88,10 +84,11 @@ class KarmmaSampler:
         self.y_cl[:,:,:2]  = np.tile(1e-20 * np.eye(self.N_Z_BINS)[:,:,np.newaxis], (1,1,2))
 
     def get_xlm(self, xlm_real, xlm_imag):
-        _xlm_real = torch.zeros(self.N_Z_BINS, len(self.ell), dtype=torch.double)
+        ell, emm = hp.Alm.getlm(self.gen_lmax)
+        _xlm_real = torch.zeros(self.N_Z_BINS, len(ell), dtype=torch.double)
         _xlm_imag = torch.zeros_like(_xlm_real)
-        _xlm_real[:,self.ell > 1] = xlm_real
-        _xlm_imag[:,(self.ell > 1) & (self.emm > 0)] = xlm_imag
+        _xlm_real[:,ell > 1] = xlm_real
+        _xlm_imag[:,(ell > 1) & (emm > 0)] = xlm_imag
         xlm = _xlm_real + 1j * _xlm_imag
         return xlm
 
@@ -102,29 +99,38 @@ class KarmmaSampler:
                 y[i] += A[i,j] * x[j]
         return y
 
-    def apply_cl(self, xlm):        
+    def apply_cl(self, xlm, cl):
+        ell, emm = hp.Alm.getlm(self.gen_lmax)
+        
+        L = torch.linalg.cholesky(cl.T).T
+    
         xlm_real = xlm.real
-        xlm_imag = xlm.imag       
+        xlm_imag = xlm.imag
+        
+        L_arr = torch.swapaxes(L[:,:,ell[ell > -1]], 0,1)
+    
 
-        ylm_real = self.matmul(self.L_arr, xlm_real) / self.SQRT_2
-        ylm_imag = self.matmul(self.L_arr, xlm_imag) / self.SQRT_2
+        ylm_real = self.matmul(L_arr, xlm_real) / torch.sqrt(torch.Tensor([2.]))
+        ylm_imag = self.matmul(L_arr, xlm_imag) / torch.sqrt(torch.Tensor([2.]))
 
-        ylm_real[:,self.ell[self.emm==0]] *= self.SQRT_2
+        ylm_real[:,ell[emm==0]] *= torch.sqrt(torch.Tensor([2.]))
     
         return ylm_real + 1j * ylm_imag
     
     def model(self, prior_only=False):
+        ell, emm = hp.Alm.getlm(self.gen_lmax)
 
-        xlm_real = pyro.sample('xlm_real', dist.Normal(torch.zeros(self.N_Z_BINS, (self.ell > 1).sum(), dtype=torch.double),
-                                                       torch.ones(self.N_Z_BINS, (self.ell > 1).sum(), dtype=torch.double)))
-        xlm_imag = pyro.sample('xlm_imag', dist.Normal(torch.zeros(self.N_Z_BINS, ((self.ell > 1) & (self.emm > 0)).sum(), dtype=torch.double),
-                                                       torch.ones(self.N_Z_BINS, ((self.ell > 1) & (self.emm > 0)).sum(), dtype=torch.double)))
+        xlm_real = pyro.sample('xlm_real', dist.Normal(torch.zeros(self.N_Z_BINS, (ell > 1).sum(), dtype=torch.double),
+                                                       torch.ones(self.N_Z_BINS, (ell > 1).sum(), dtype=torch.double)))
+        xlm_imag = pyro.sample('xlm_imag', dist.Normal(torch.zeros(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=torch.double),
+                                                       torch.ones(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=torch.double)))
 
-        theta = pyro.sample('theta', dist.Normal(torch.tensor([0.233, 0.82]).to(torch.double), 
-                                                  torch.tensor([0.05, 0.03]).to(torch.double)))
+        theta = pyro.sample('theta', dist.Normal(torch.Tensor([0.233, 0.82]).to(torch.double), 
+                                                  torch.Tensor([0.05, 0.03]).to(torch.double)))
           
         xlm = self.get_xlm(xlm_real, xlm_imag)
-        ylm = self.apply_cl(xlm)
+        y_cl = self.y_cl
+        ylm = self.apply_cl(xlm, y_cl)
         for i in range(self.N_Z_BINS):
             k = torch.exp(self.mu[i] + Alm2Map.apply(ylm[i], self.nside, self.gen_lmax)) - self.shift[i]
             g1, g2 = conv2shear(k, self.lmax)

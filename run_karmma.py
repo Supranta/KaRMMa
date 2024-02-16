@@ -16,7 +16,7 @@ config     = KarmmaConfig(configfile)
 
 nside    = config.analysis['nside']
 gen_lmax = 3 * nside - 1
-lmax     = 2 * nside - 1
+lmax     = 2 * nside
 
 N_Z_BINS = config.analysis['nbins']
 shift    = config.analysis['shift']
@@ -65,18 +65,23 @@ samples = sampler.sample(config.n_burn_in, config.n_samples)
 
 def x2kappa(xlm_real, xlm_imag):
     kappa_list = []
+    kappa_filtered_list = []
     xlm = sampler.get_xlm(xlm_real, xlm_imag)
-    ylm = sampler.apply_cl(xlm)
+    ylm = sampler.apply_cl(xlm, sampler.y_cl)
     for i in range(N_Z_BINS):
         k = torch.exp(sampler.mu[i] + trf.Alm2Map.apply(ylm[i], nside, gen_lmax)) - sampler.shift[i]
-        kappa_list.append(k.numpy())
-    return np.array(kappa_list)
+        k = k.numpy()
+        k_filtered = get_filtered_map(k, sampler.pixwin_ell_filter.numpy(), nside)
+        kappa_list.append(k)
+        kappa_filtered_list.append(k_filtered)
+    return np.array(kappa_list), np.array(kappa_filtered_list)
 
 for i, (theta, xlm_real, xlm_imag) in enumerate(zip(samples['theta'], samples['xlm_real'], samples['xlm_imag'])):
-    kappa = x2kappa(xlm_real, xlm_imag)
+    kappa, kappa_filtered = x2kappa(xlm_real, xlm_imag)
     with h5.File(config.io_dir + '/sample_%d.h5'%(i), 'w') as f:
         f['i']        = i
         f['theta']    = theta
-        f['xlm_real'] = xlm_real
-        f['xlm_imag'] = xlm_imag
-        f['kappa']    = kappa
+        #f['xlm_real'] = xlm_real
+        #f['xlm_imag'] = xlm_imag
+        f['kappa']    = kappa_filtered
+        #f['kappa'] = kappa

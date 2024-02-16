@@ -17,19 +17,19 @@ def get_corrfunc(kappa_maps, mask, bins):
     corr = healcorr.compute_corr(kappa_maps, mask=mask.astype(bool), bins=bins, premasked=False, cross_correlate=True, verbose=True)
     return corr    
 
-def get_kappa_bins_1ptfunc(KAPPA_STD_TRUE, nbins, n_kappabins=26):
+def get_kappa_bins_1ptfunc(KAPPA_STD_TRUE, nbins, n_kappabins=46):
     kappa_bins = []
     for i in range(nbins):
-        kappa_bins_i = np.linspace(-2. * KAPPA_STD_TRUE[i], 3. * KAPPA_STD_TRUE[i], n_kappabins)
+        kappa_bins_i = np.linspace(-4. * KAPPA_STD_TRUE[i], 5. * KAPPA_STD_TRUE[i], n_kappabins)
         kappa_bins.append(kappa_bins_i)
 
     return np.array(kappa_bins)    
 
-def get_1ptfunc(kappa_maps, kappa_bins):
+def get_1ptfunc(kappa_maps, kappa_bins, mask):
     nbins = kappa_maps.shape[0]
     pdf = []
     for i in range(nbins):
-        pdf_i, _ = np.histogram(kappa_maps[i], kappa_bins[i], density=True)
+        pdf_i, _ = np.histogram(kappa_maps[i][mask.astype(bool)], kappa_bins[i], density=True)
         pdf.append(pdf_i)
     return np.array(pdf)
 
@@ -62,3 +62,43 @@ def get_cross_corr(kappa1, kappa2, mask, theta_bins):
         cross_corr_list.append(cross_corr)
 
     return np.array(cross_corr_list)
+
+def get_neighbor_maps(hp_map):
+    npix = hp_map.shape[0]
+    nside = hp.npix2nside(npix)
+    neighbour_indices = hp.get_all_neighbours(nside, np.arange(npix))
+    neighbor_maps = []
+    for i in range(8):
+        neighbor_maps.append(hp_map[neighbour_indices[i]])
+    return np.array(neighbor_maps)
+
+def get_kappa_peaks(hp_map, mask):
+    neighbor_maps     = get_neighbor_maps(hp_map)
+    max_neighbour_map = np.max(neighbor_maps, axis=0)
+    select_peaks      = (hp_map > max_neighbour_map) & mask
+    return hp_map[select_peaks]
+
+def get_kappa_troughs(hp_map, mask):
+    neighbor_maps     = get_neighbor_maps(hp_map)
+    min_neighbour_map = np.min(neighbor_maps, axis=0)
+    select_troughs      = (hp_map < min_neighbour_map) & mask
+    return hp_map[select_troughs]
+
+def get_counts(kappa_map, kappa_bins, mask, flag='peak'):
+    if flag=='peak':
+        kappa_features = get_kappa_peaks(kappa_map, mask)
+    elif flag=='void':
+        kappa_features = get_kappa_troughs(kappa_map, mask)
+    counts, _ = np.histogram(kappa_features, kappa_bins, density=True)
+    return counts
+
+def get_tomo_counts(kappa_map, kappa_bins, mask, flag='peak'):
+    counts_list = []
+    nbins = kappa_map.shape[0]
+    counts_list_patch = []
+    for i in range(nbins):
+        counts = get_counts(kappa_map[i], kappa_bins[i], mask.astype(bool), flag)
+        counts_list.append(counts)
+    return np.array(counts_list)
+
+

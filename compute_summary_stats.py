@@ -16,9 +16,7 @@ except:
     calculate_cross_corr = False
 
 comm = MPI.COMM_WORLD
-# Get the rank of the current process
 rank = comm.Get_rank()
-# Get the total number of processes
 size = comm.Get_size()
 
 print("rank: %d, size: %d"%(rank, size))
@@ -29,7 +27,7 @@ nside = config.analysis['nside']
 nbins = config.analysis['nbins']
 mask = config.data['mask']
 
-with h5.File(config.datafile, 'r') as f:
+with h5.File('./data/HSC_mocks/all_modes/mock_0.h5', 'r') as f:
     kappa_true = f['kappa'][:]
 KAPPA_STD_TRUE = kappa_true[:,mask.astype(bool)].std(1)    
 
@@ -60,7 +58,15 @@ def compute_summary(kappa, mask, summary_type):
         bins       = theta_bins * rad2arcmin
         bin_centre = theta_bin_centre * rad2arcmin
     elif(summary_type=='kappa_pdf'):
-        summary    = get_1ptfunc(kappa, kappa_bins) 
+        summary    = get_1ptfunc(kappa, kappa_bins, mask) 
+        bins       = kappa_bins
+        bin_centre = 0.5 * (kappa_bins[:,1:] + kappa_bins[:,:-1])
+    elif(summary_type=='peak_counts'):
+        summary    = get_tomo_counts(kappa, kappa_bins, mask, flag='peak')
+        bins       = kappa_bins
+        bin_centre = 0.5 * (kappa_bins[:,1:] + kappa_bins[:,:-1])
+    elif(summary_type=='void_counts'):
+        summary    = get_tomo_counts(kappa, kappa_bins, mask, flag='void')
         bins       = kappa_bins
         bin_centre = 0.5 * (kappa_bins[:,1:] + kappa_bins[:,:-1])
     elif(summary_type=='pseudo_cl'):
@@ -73,16 +79,7 @@ def compute_summary(kappa, mask, summary_type):
         bin_centre = theta_bin_centre * rad2arcmin
     return summary, bins, bin_centre
 
-if rank == 0:
-    with h5.File(config.datafile, 'r+') as f:
-        kappa = f['kappa'][:]
-        get_summary(None, kappa, 'corr')
-        get_summary(None, kappa, 'kappa_pdf')
-        get_summary(None, kappa, 'pseudo_cl')
-
-# Calculate the number of iterations per process
 iterations_per_process = config.n_samples // size
-# Calculate the start and end indices for this process
 start_index = rank * iterations_per_process
 end_index = start_index + iterations_per_process
 
@@ -91,7 +88,9 @@ for i in range(start_index,end_index):
     with h5.File(config.io_dir + '/sample_%d.h5'%(i), 'r+') as f:
         kappa = f['kappa'][:]
     get_summary(i, kappa, 'corr')
-    get_summary(i, kappa, 'kappa_pdf')
     get_summary(i, kappa, 'pseudo_cl')
+    get_summary(i, kappa, 'kappa_pdf')
+    get_summary(i, kappa, 'peak_counts')
+    get_summary(i, kappa, 'void_counts')
     if(calculate_cross_corr):
         get_summary(i, kappa, 'cross_corr')

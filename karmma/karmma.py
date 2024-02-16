@@ -145,7 +145,9 @@ class KarmmaSampler:
           
         xlm = self.get_xlm(xlm_real, xlm_imag)
         y_cl = self.y_cl
+        
         ylm = self.apply_cl(xlm, y_cl)
+        
         for i in range(self.N_Z_BINS):
             k = torch.exp(self.mu[i] + Alm2Map.apply(ylm[i], self.nside, self.gen_lmax)) - self.shift[i]
             g1, g2 = conv2shear(k, self.lmax, self.pixwin_ell_filter)
@@ -153,14 +155,13 @@ class KarmmaSampler:
             pyro.sample(f'g1_obs_{i}', dist.Normal(g1[self.mask], self.sigma_obs[i,self.mask]), obs=self.g1_obs[i,self.mask])
             pyro.sample(f'g2_obs_{i}', dist.Normal(g2[self.mask], self.sigma_obs[i,self.mask]), obs=self.g2_obs[i,self.mask])
 
-        
     def sample(self, num_burn, num_samples, kernel=None):
         if not kernel:
             kernel = NUTS(self.model, target_accept_prob=0.65)
         mcmc = MCMC(kernel, num_samples=num_samples, warmup_steps=num_burn,
                     initial_params={"theta": torch.Tensor([0.233, 0.82]).to(torch.double), 
-                                    "xlm_real": 0.1 * torch.randn((self.N_Z_BINS, (self.ell > 1).sum()), dtype=torch.double),
-                                    "xlm_imag": 0.1 * torch.randn((self.N_Z_BINS, ((self.ell > 1) & (self.emm > 0)).sum()), dtype=torch.double)})
+                                    "xlm_real": 0.3 * torch.randn((self.N_Z_BINS, (self.ell > 1).sum()), dtype=torch.double),
+                                    "xlm_imag": 0.3 * torch.randn((self.N_Z_BINS, ((self.ell > 1) & (self.emm > 0)).sum()), dtype=torch.double)})
         mcmc.run()
         self.samps = mcmc.get_samples()
 

@@ -4,8 +4,6 @@ analysis:
     sigma_e: 0.261
     shift: 0.00416708,0.0085054,0.01561475,0.0236787 
     vargauss: 0.18815055,0.14421919,0.1114475,0.06784224
-    nbar: 1.476,1.479,1.484,1.461        
-    nz_file: data/des_y3/desy3_nz.npy
     cl_file: data/des_y3/cl.npy
     pixwin: data/healpix/hybrid_pixwin_256.npy
 
@@ -15,6 +13,6 @@ io:
     maskfile: data/des_y3/mask_desy3.fits
      
 mcmc:
-    n_burn_in: 1
-    n_samples: 1
+    n_burn_in: 150
+    n_samples: 100
     

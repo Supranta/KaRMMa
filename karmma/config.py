@@ -23,10 +23,6 @@ class KarmmaConfig:
         split_vargauss = config_args_analysis['vargauss'].split(',')
         vargauss = np.array([float(vargauss) for vargauss in split_vargauss])
         
-        split_nbar = config_args_analysis['nbar'].split(',')
-        nbar = np.array([float(nbar) for nbar in split_nbar])
-        
-        nz = np.load(config_args_analysis['nz_file'])
         cl = np.load(config_args_analysis['cl_file'])
        
         try:
@@ -40,8 +36,6 @@ class KarmmaConfig:
                      'sigma_e': sigma_e, 
                      'shift': shift,
                      'vargauss': vargauss,
-                     'nbar': nbar,
-                     'nz': nz,
                      'cl': cl,
                      'pixwin': pixwin
                     }

@@ -13,14 +13,13 @@ from joblib import Parallel, delayed
 ##==================================
 
 class KarmmaSampler:
-    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, cl, shift, vargauss, cl_emu=None, lmax=None, gen_lmax=None, pixwin=None):
+    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, cl, shift, vargauss, lmax=None, gen_lmax=None, pixwin=None):
         self.g1_obs = g1_obs       
         self.g2_obs = g2_obs
         self.N_Z_BINS = g1_obs.shape[0]
         self.sigma_obs = sigma_obs
         self.mask = mask.astype(bool)
         self.cl = cl
-        self.cl_emu   = cl_emu
         self.shift    = shift
         self.vargauss = vargauss
 
@@ -55,14 +54,6 @@ class KarmmaSampler:
         theta_fid = torch.Tensor(theta_fid).to(torch.double)
         self.y_cl_fid = self.y_cl
         self.tensorize()
-
-    def get_cl_gp(self, theta_pred):
-        log_cl_pred = self.cl_emu.pca_mean
-        for i in range(self.cl_emu.N_PCA):
-            gp_pred_i = self.cl_emu.likelihoods[i](self.cl_emu.models[i](theta_pred)).mean
-            pca_coeff_i = self.cl_emu.PCA_MEAN[:,i] + self.cl_emu.PCA_STD[:,i] * gp_pred_i
-            log_cl_pred = log_cl_pred + pca_coeff_i * self.cl_emu.pca_components[i]
-        return torch.exp(log_cl_pred[0]).reshape((self.N_Z_BINS,self.N_Z_BINS,-1))
     
     def tensorize(self):
         self.g1_obs = torch.tensor(self.g1_obs)

@@ -2,9 +2,8 @@ import sys
 import numpy as np
 import h5py as h5
 import healpy as hp
-from karmma import KarmmaSampler, KarmmaConfig#, ClEmu
+from karmma import KarmmaSampler, KarmmaConfig
 from karmma.utils import *
-# import gpytorch
 import karmma.transforms as trf
 from scipy.stats import norm, poisson
 import torch
@@ -22,11 +21,10 @@ N_Z_BINS = config.analysis['nbins']
 shift    = config.analysis['shift']
 vargauss = config.analysis['vargauss']
 
-nz_data  = config.analysis['nz']
 sigma_e  = config.analysis['sigma_e']
 
 cl     = config.analysis['cl'][:,:,:(gen_lmax + 1)]
-cl_emu = None
+#cl_emu = None
 pixwin = config.analysis['pixwin']
 
 #============= Load data =======================
@@ -42,7 +40,7 @@ sigma = sigma_e / np.sqrt(N + 1e-25)
 #============================================================
 
 print("Initializing sampler....")
-sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, cl, shift, vargauss, cl_emu, lmax, gen_lmax, pixwin=pixwin)
+sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, cl, shift, vargauss, lmax, gen_lmax, pixwin=pixwin)
      
 print("Done initializing sampler....")
 

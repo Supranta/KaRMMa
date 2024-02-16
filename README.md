@@ -19,29 +19,30 @@ We also include the conda environment used for running KaRMMa as a yaml file [he
 
 #### Understanding the config file
 
-The config file contains three parts: 1) analysis. 2) io. 3) mcmc 
+The config file contains three parts: 1) `analysis` 2) `io` 3) `mcmc` 
+
+The description of each of the fields is given below. 
+
 ```
 analysis:
-    nbins: 4
-    nside: 256 
-    sigma_e: 0.261
-    shift: 0.00416708,0.0085054,0.01561475,0.0236787 
-    vargauss: 0.18815055,0.14421919,0.1114475,0.06784224
-    nbar: 1.476,1.479,1.484,1.461        
-    nz_file: data/des_y3/desy3_nz.npy
-    cl_file: data/des_y3/cl.npy
-    pixwin: data/healpix/hybrid_pixwin_256.npy
+    nbins: 4                                              # Number of tomographic bins
+    nside: 256                                            # Healpix nside resolution
+    sigma_e: 0.261                                        # Magnitude of shape noise
+    shift: 0.00416708,0.0085054,0.01561475,0.0236787      # Lognormal shift parameters in each bin
+    vargauss: 0.18815055,0.14421919,0.1114475,0.06784224  # Lognormal variance in each bin
+    cl_file: data/des_y3/cl.npy                           # Theory C(l) used in the KaRMMa run
+    pixwin: data/healpix/hybrid_pixwin_256.npy            # HEALPIX window function
 ```
 
 ```
 io:     
-    datafile: data/des_y3/desy3_shear_data.h5
-    io_dir: output/des_y3/
-    maskfile: data/des_y3/mask_desy3.fits
+    datafile: data/des_y3/desy3_shear_data.h5             # Path to the datafile
+    io_dir: output/des_y3/                                # Output directory
+    maskfile: data/des_y3/mask_desy3.fits                 # Mask file
 ```
 
 ```
 mcmc:
-    n_burn_in: 1
-    n_samples: 1
+    n_burn_in: 150                                        # Number of Burn-in steps           
+    n_samples: 100                                        # Number of MCMC samples
 ```

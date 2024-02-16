@@ -53,7 +53,6 @@ class KarmmaSampler:
 
         theta_fid = np.array([0.233, 0.82])[np.newaxis]
         theta_fid = torch.Tensor(theta_fid).to(torch.double)
-#         self.y_cl_fid = self.get_cl_gp(theta_fid)
         self.y_cl_fid = self.y_cl
         self.tensorize()
 
@@ -92,7 +91,6 @@ class KarmmaSampler:
 
                 ycl_ij = np.array(Parallel(n_jobs=-1)(
             delayed(self.compute_lognorm_cl_at_ell)(mu, w, integrand, ell) for ell in range(self.gen_lmax + 1)))
-#                 ycl_ij = np.array([self.compute_lognorm_cl_at_ell(mu, w, integrand, ell) for ell in range(self.gen_lmax + 1)])
                 self.y_cl[i,j] = ycl_ij
                 self.y_cl[j,i] = ycl_ij
                 
@@ -139,9 +137,6 @@ class KarmmaSampler:
                                                        torch.ones(self.N_Z_BINS, (ell > 1).sum(), dtype=torch.double)))
         xlm_imag = pyro.sample('xlm_imag', dist.Normal(torch.zeros(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=torch.double),
                                                        torch.ones(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=torch.double)))
-
-        theta = pyro.sample('theta', dist.Normal(torch.Tensor([0.233, 0.82]).to(torch.double), 
-                                                  torch.Tensor([0.05, 0.03]).to(torch.double)))
           
         xlm = self.get_xlm(xlm_real, xlm_imag)
         y_cl = self.y_cl
@@ -159,8 +154,7 @@ class KarmmaSampler:
         if not kernel:
             kernel = NUTS(self.model, target_accept_prob=0.65)
         mcmc = MCMC(kernel, num_samples=num_samples, warmup_steps=num_burn,
-                    initial_params={"theta": torch.Tensor([0.233, 0.82]).to(torch.double), 
-                                    "xlm_real": 0.3 * torch.randn((self.N_Z_BINS, (self.ell > 1).sum()), dtype=torch.double),
+                    initial_params={"xlm_real": 0.3 * torch.randn((self.N_Z_BINS, (self.ell > 1).sum()), dtype=torch.double),
                                     "xlm_imag": 0.3 * torch.randn((self.N_Z_BINS, ((self.ell > 1) & (self.emm > 0)).sum()), dtype=torch.double)})
         mcmc.run()
         self.samps = mcmc.get_samples()

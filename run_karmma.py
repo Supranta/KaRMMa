@@ -57,7 +57,7 @@ def x2kappa(xlm_real, xlm_imag):
         kappa_list.append(k_filtered)
     return np.array(kappa_list)
 
-for i, (theta, xlm_real, xlm_imag) in enumerate(zip(samples['theta'], samples['xlm_real'], samples['xlm_imag'])):
+for i, (xlm_real, xlm_imag) in enumerate(zip(samples['xlm_real'], samples['xlm_imag'])):
     kappa = x2kappa(xlm_real, xlm_imag)
     with h5.File(config.io_dir + '/sample_%d.h5'%(i), 'w') as f:
         f['i']        = i

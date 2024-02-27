@@ -27,9 +27,9 @@ nside = config.analysis['nside']
 nbins = config.analysis['nbins']
 mask = config.data['mask']
 
-with h5.File('./data/HSC_mocks/all_modes/mock_0.h5', 'r') as f:
-    kappa_true = f['kappa'][:]
-KAPPA_STD_TRUE = kappa_true[:,mask.astype(bool)].std(1)    
+with h5.File(config.io_dir + '/sample_0.h5', 'r') as f:
+    kappa_0 = f['kappa'][:]
+KAPPA_STD_TRUE = kappa_0[:,mask.astype(bool)].std(1)    
 
 theta_bins, theta_bin_centre          = get_theta_bins(nside)
 kappa_bins                            = get_kappa_bins_1ptfunc(KAPPA_STD_TRUE, nbins)

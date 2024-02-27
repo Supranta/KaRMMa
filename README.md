@@ -17,6 +17,13 @@ python3 run_karmma.py $CONFIGFILE
 Note that each KaRMMa run takes O(1 day) to run. So make sure you have the computational resources to run the code. 
 We also include the conda environment used for running KaRMMa as a yaml file [here](https://github.com/Supranta/karmma/blob/master/environment.yml).
 
+Once the run is complete you can run an analysis script to compute the correlation function, pseudo C(l)'s and a number of non-Gaussian summary statistics using the `compute_summary_stats.py` file. To do so, use the following code.  
+
+```
+mpirun -n 10 python3 compute_summary_stats.py $CONFIGFILE
+```
+Note that the analysis script uses the `healcorr` and the `NaMaster` packages. The `healcorr` package is a code to compute the correlation function of healpix maps and can be found [here](https://github.com/pierfied/healcorr)
+
 #### Understanding the config file
 
 The config file contains three parts: 1) `analysis` 2) `io` 3) `mcmc` 

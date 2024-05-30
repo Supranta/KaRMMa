@@ -1,4 +1,5 @@
 import sys
+import pickle
 import numpy as np
 import h5py as h5
 import healpy as hp
@@ -8,7 +9,7 @@ import karmma.transforms as trf
 from scipy.stats import norm, poisson
 import torch
 
-torch.set_num_threads(8)
+torch.set_num_threads(16)
 
 configfile = sys.argv[1]
 config     = KarmmaConfig(configfile)
@@ -44,7 +45,7 @@ sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, cl, shift, vargauss, lmax, 
      
 print("Done initializing sampler....")
 
-samples = sampler.sample(config.n_burn_in, config.n_samples)
+samples, mcmc_kernel = sampler.sample(config.n_burn_in, config.n_samples)
 
 def x2kappa(xlm_real, xlm_imag):
     kappa_list = []
@@ -57,8 +58,19 @@ def x2kappa(xlm_real, xlm_imag):
         kappa_list.append(k_filtered)
     return np.array(kappa_list)
 
+print("Saving samples...")
 for i, (xlm_real, xlm_imag) in enumerate(zip(samples['xlm_real'], samples['xlm_imag'])):
     kappa = x2kappa(xlm_real, xlm_imag)
     with h5.File(config.io_dir + '/sample_%d.h5'%(i), 'w') as f:
         f['i']        = i
         f['kappa']    = kappa
+        f['xlm_real'] = xlm_real
+        f['xlm_imag'] = xlm_imag
+
+print("Saving MCMC meta-data and mass matrix...")
+with h5.File(config.io_dir + '/mcmc_metadata.h5', 'w') as f:
+    f['step_size'] = mcmc_kernel.step_size
+    f['num_size']  = mcmc_kernel.num_steps
+
+with open(config.io_dir + "/mass_matrix_inv.pkl","wb") as f:
+    pickle.dump(mcmc_kernel.inverse_mass_matrix, f)

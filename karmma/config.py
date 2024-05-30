@@ -18,10 +18,10 @@ class KarmmaConfig:
         sigma_e = float(config_args_analysis['sigma_e'])
         
         split_shift = config_args_analysis['shift'].split(',')
-        shift = np.array([float(shift) for shift in split_shift])
+        shift = np.array([float(split_shift[i]) for i in range(nbins)])
         
         split_vargauss = config_args_analysis['vargauss'].split(',')
-        vargauss = np.array([float(vargauss) for vargauss in split_vargauss])
+        vargauss = np.array([float(split_vargauss[i]) for i in range(nbins)])
         
         cl = np.load(config_args_analysis['cl_file'])
        

@@ -133,14 +133,14 @@ class KarmmaSampler:
         y_cl = self.y_cl
         
         ylm = self.apply_cl(xlm, y_cl)
-        
+       
         for i in range(self.N_Z_BINS):
             k = torch.exp(self.mu[i] + Alm2Map.apply(ylm[i], self.nside, self.gen_lmax)) - self.shift[i]
             g1, g2 = conv2shear(k, self.lmax, self.pixwin_ell_filter)
 
             pyro.sample(f'g1_obs_{i}', dist.Normal(g1[self.mask], self.sigma_obs[i,self.mask]), obs=self.g1_obs[i,self.mask])
             pyro.sample(f'g2_obs_{i}', dist.Normal(g2[self.mask], self.sigma_obs[i,self.mask]), obs=self.g2_obs[i,self.mask])
-
+    
     def sample(self, num_burn, num_samples, kernel=None):
         if not kernel:
             kernel = NUTS(self.model, target_accept_prob=0.65)
@@ -150,7 +150,7 @@ class KarmmaSampler:
         mcmc.run()
         self.samps = mcmc.get_samples()
 
-        return self.samps
+        return self.samps, mcmc.kernel
 
     def save_samples(self, fname):
         pickle.dump(self.samps, open(fname, 'wb'))

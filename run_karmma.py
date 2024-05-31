@@ -45,7 +45,7 @@ sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, cl, shift, vargauss, lmax, 
      
 print("Done initializing sampler....")
 
-samples, mcmc_kernel = sampler.sample(config.n_burn_in, config.n_samples, inv_mass_matrix=config.inv_mass_matrix, x_init=config.x_init)
+samples, mcmc_kernel = sampler.sample(config.n_burn_in, config.n_samples, config.n_steps, inv_mass_matrix=config.inv_mass_matrix, x_init=config.x_init)
 
 def x2kappa(xlm_real, xlm_imag):
     kappa_list = []
@@ -70,7 +70,7 @@ for i, (xlm_real, xlm_imag) in enumerate(zip(samples['xlm_real'], samples['xlm_i
 print("Saving MCMC meta-data and mass matrix...")
 with h5.File(config.io_dir + '/mcmc_metadata.h5', 'w') as f:
     f['step_size'] = mcmc_kernel.step_size
-    f['num_size']  = mcmc_kernel.num_steps
+    f['num_steps'] = mcmc_kernel.num_steps
 
 with open(config.io_dir + "/mass_matrix_inv.pkl","wb") as f:
     pickle.dump(mcmc_kernel.inverse_mass_matrix, f)

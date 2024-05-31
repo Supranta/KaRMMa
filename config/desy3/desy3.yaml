@@ -11,8 +11,11 @@ io:
     datafile: data/des_y3/desy3_shear_data.h5
     io_dir: output/des_y3/
     maskfile: data/des_y3/mask_desy3.fits
-     
+    x_init_file: output/des_y3/kappa_MAP.h5
+    
 mcmc:
-    n_burn_in: 150
-    n_samples: 100
+    n_burn_in: 200
+    n_samples: 200
+    n_steps: 100
+    custom_mass_matrix: true
     

@@ -141,12 +141,19 @@ class KarmmaSampler:
             pyro.sample(f'g1_obs_{i}', dist.Normal(g1[self.mask], self.sigma_obs[i,self.mask]), obs=self.g1_obs[i,self.mask])
             pyro.sample(f'g2_obs_{i}', dist.Normal(g2[self.mask], self.sigma_obs[i,self.mask]), obs=self.g2_obs[i,self.mask])
     
-    def sample(self, num_burn, num_samples, kernel=None):
+    def sample(self, num_burn, num_samples, x_init=None, kernel=None):
         if not kernel:
             kernel = NUTS(self.model, target_accept_prob=0.65)
+        x_real_init = 0.3 * torch.randn((self.N_Z_BINS, (self.ell > 1).sum()), dtype=torch.double)
+        x_imag_init = 0.3 * torch.randn((self.N_Z_BINS, ((self.ell > 1) & (self.emm > 0)).sum()), dtype=torch.double)
+        if x_init is not None:
+            xlm_real_init, xlm_imag_init = x_init
+            xlm_real_init = torch.tensor(xlm_real_init, dtype=torch.double)
+            xlm_imag_init = torch.tensor(xlm_imag_init, dtype=torch.double)
+
         mcmc = MCMC(kernel, num_samples=num_samples, warmup_steps=num_burn,
-                    initial_params={"xlm_real": 0.3 * torch.randn((self.N_Z_BINS, (self.ell > 1).sum()), dtype=torch.double),
-                                    "xlm_imag": 0.3 * torch.randn((self.N_Z_BINS, ((self.ell > 1) & (self.emm > 0)).sum()), dtype=torch.double)})
+                    initial_params={"xlm_real": x_real_init,
+                                    "xlm_imag": x_imag_init})
         mcmc.run()
         self.samps = mcmc.get_samples()
 

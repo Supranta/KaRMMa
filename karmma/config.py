@@ -57,7 +57,16 @@ class KarmmaConfig:
             self.maskfile = config_args_io['maskfile']
         except:
             self.maskfile = None
-        
+        try:
+            with h5.File(config_args_io['x_init_file'], 'r') as f:
+                xlm_imag_init = f['xlm_imag'][:]
+                xlm_real_init = f['xlm_real'][:]
+                self.x_init = [xlm_real_init, xlm_imag_init]
+            print("Initialized from file: "+config_args_io['x_init_file'])
+        except:
+            print("Initialization file not found. Initializing with prior.")
+            self.x_init = None
+
     def read_data(self, datafile):
         with h5.File(datafile, 'r') as f:
             N      = f['N'][:]

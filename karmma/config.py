@@ -84,9 +84,9 @@ class KarmmaConfig:
         self.n_burn_in = config_args_mcmc['n_burn_in']
         self.n_samples = config_args_mcmc['n_samples']
         try:
-            self.n_steps = config_args_mcmc['n_steps']
+            self.step_size = float(config_args_mcmc['step_size'])
         except:
-            self.n_steps = 100
+            self.step_size = 0.05
         try:
             if config_args_mcmc['custom_mass_matrix']:
                 with open(self.io_dir+'/mass_matrix_inv.pkl', 'rb') as f:

@@ -141,8 +141,8 @@ class KarmmaSampler:
             pyro.sample(f'g1_obs_{i}', dist.Normal(g1[self.mask], self.sigma_obs[i,self.mask]), obs=self.g1_obs[i,self.mask])
             pyro.sample(f'g2_obs_{i}', dist.Normal(g2[self.mask], self.sigma_obs[i,self.mask]), obs=self.g2_obs[i,self.mask])
     
-    def sample(self, num_burn, num_samples, num_steps=100, inv_mass_matrix=None, x_init=None):
-        kernel = NUTS(self.model, target_accept_prob=0.65, step_size=2. * np.pi / num_steps)
+    def sample(self, num_burn, num_samples, step_size=0.05, inv_mass_matrix=None, x_init=None):
+        kernel = NUTS(self.model, target_accept_prob=0.65, step_size=step_size)
         if inv_mass_matrix is not None:
             kernel.mass_matrix_adapter.inverse_mass_matrix = inv_mass_matrix
         x_real_init = 0.3 * torch.randn((self.N_Z_BINS, (self.ell > 1).sum()), dtype=torch.double)

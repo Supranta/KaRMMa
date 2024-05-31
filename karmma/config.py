@@ -1,5 +1,6 @@
 import numpy as np
 import h5py as h5
+import pickle
 import yaml
 import os
 
@@ -82,3 +83,10 @@ class KarmmaConfig:
     def set_config_mcmc(self, config_args_mcmc):
         self.n_burn_in = config_args_mcmc['n_burn_in']
         self.n_samples = config_args_mcmc['n_samples']
+        try:
+            if config_args_mcmc['custom_mass_matrix']:
+                with open(self.io_dir+'/mass_matrix_inv.pkl', 'rb') as f:
+                    self.inv_mass_matrix = pickle.load(f)
+                print("Using custom mass matrix...")
+        except:
+            self.inv_mass_matrix = None

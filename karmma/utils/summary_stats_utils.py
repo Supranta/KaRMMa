@@ -1,6 +1,6 @@
 import sys
-sys.path.append('/home/ssarmabo/karmic_harmonies/healcorr')
-#sys.path.append('/groups/erozo/ssarmabo/softs/healcorr/')
+#sys.path.append('/home/ssarmabo/karmic_harmonies/healcorr')
+sys.path.append('/groups/erozo/ssarmabo/softs/healcorr/')
 import numpy as np
 import healpy as hp
 import pymaster as nmt
@@ -61,6 +61,17 @@ def get_cross_corr(kappa1, kappa2, mask, theta_bins):
         cross_corr = corr[0,1]/ np.sqrt(corr[0,0] * corr[1,1])
         cross_corr_list.append(cross_corr)
 
+    return np.array(cross_corr_list)
+
+def get_cross_corr_ell(kappa1, kappa2, mask, nmt_ell_bins):
+    nbins = kappa1.shape[0]
+    cross_corr_list = []
+    for i in range(nbins):
+        print("Computing cross-corr for bin: %d"%(i+1))
+        kappa_map_corr = np.array([kappa1[i], kappa2[i]])
+        corr = get_pseudo_cls(kappa_map_corr, mask, nmt_ell_bins)
+        cross_corr = corr[0,1]/ np.sqrt(np.abs(corr[0,0] * corr[1,1]))
+        cross_corr_list.append(cross_corr)
     return np.array(cross_corr_list)
 
 def get_neighbor_maps(hp_map):

@@ -91,7 +91,6 @@ dependencies:
   - gst-plugins-base=1.22.0
   - gstreamer=1.22.0
   - gstreamer-orc=0.4.34
-  - halotools=0.8.2
   - harfbuzz=6.0.0
   - hdf5=1.14.1
   - healpy=1.16.1
@@ -343,7 +342,6 @@ dependencies:
     - fonttools==4.37.2
     - gpytorch==1.9.0
     - h5py==3.7.0
-    - halotools-ia==0.1
     - imageio==2.28.1
     - joblib==1.1.0
     - linear-operator==0.1.1

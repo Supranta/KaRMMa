@@ -64,8 +64,8 @@ class KarmmaSampler:
         self.y_cl = torch.tensor(self.y_cl)
 
     def compute_lognorm_cl_at_ell(self, mu, w, integrand, ell):
-        integrand = np.log(np.polynomial.legendre.legval(mu, integrand) + 1)
-        return 2 * np.pi * np.sum(w * integrand * eval_legendre(ell, mu))
+        xi_g = np.log(np.polynomial.legendre.legval(mu, integrand) + 1)
+        return 2 * np.pi * np.sum(w * xi_g * eval_legendre(ell, mu))
 
     def compute_lognorm_cl(self, order=2):
         mu, w = np.polynomial.legendre.leggauss(order * self.gen_lmax)

@@ -3,7 +3,7 @@ import h5py as h5
 import pickle
 import yaml
 import os
-#q roio
+
 class KarmmaConfig:
     def __init__(self, configfile):
         with open(configfile, "r") as stream:

@@ -2,7 +2,7 @@ import gpytorch
 import torch
 import numpy as np
 from sklearn.decomposition import PCA
-
+# q roio plebes
 def train_gp(model, likelihood, train_data, training_iter=200, verbose=False):
     train_x, train_y = train_data
     model.train()

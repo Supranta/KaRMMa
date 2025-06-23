@@ -215,7 +215,7 @@ dependencies:
   - oauthlib=3.2.2
   - openjpeg=2.5.0
   - openmpi=4.1.5
-  - openssl=3.2.1
+  - openssl=3.1.1
   - opt_einsum=3.3.0
   - packaging=23.1
   - pandoc=3.1.2

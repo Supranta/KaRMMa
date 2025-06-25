@@ -102,6 +102,7 @@ class KarmmaConfig:
             self.inv_mass_matrix = None
 
     def set_config_mocks(self,config_args_mocks):
-        self.N_theta = config_args_mocks['N_theta']
-        split_theta = config_args_mocks['theta_fid'].split(',')
+        self.N_theta  = config_args_mocks['N_theta']
+        split_theta   = config_args_mocks['theta_fid'].split(',')
         self.thetafid = np.array([float(split_theta[i]) for i in range(self.N_theta)])
+        self.N_map    = config_args_mocks['N_map']

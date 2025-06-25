@@ -20,5 +20,11 @@ mcmc:
     custom_mass_matrix: true
     
 cosmology:
-    emulator_file: /home/ssarmabo/karmma_tomography/karmma_cosmo/data/nside_256/emulator_parameters_1.h5
-    
+    shift_file: data/des_y3/shift_training_data.pt
+    mean_g_file: data/des_y3/mean_g_training_data.pt
+    y_cl_file: data/des_y3/ycl_training_data.pt
+
+mocks:
+    #(Omega_m, sigma8, w, omegab, h, ns)
+    N_theta: 6
+    theta_fid: 0.279798753,0.87134582355,-1.0721294206,0.02237,0.7022,0.9649

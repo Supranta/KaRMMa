@@ -12,7 +12,8 @@ class KarmmaConfig:
         self.set_config_io(config_args['io'])
         self.set_config_mcmc(config_args['mcmc'])
         self.set_config_cosmo(config_args['cosmology'])
-            
+        self.set_config_mocks(config_args['mocks'])  
+
     def set_config_analysis(self, config_args_analysis):
         print("Setting config data....")
         nbins = int(config_args_analysis['nbins'])
@@ -45,8 +46,9 @@ class KarmmaConfig:
         return data_dict
     
     def set_config_cosmo(self, config_args_cosmo):
-        self.emulator_file = config_args_cosmo['emulator_file']
-        
+        self.shift_file  = config_args_cosmo['shift_file']
+        self.mean_g_file = config_args_cosmo['mean_g_file']
+        self.y_cl_file   = config_args_cosmo['y_cl_file']
     def set_config_io(self, config_args_io):
         self.datafile = config_args_io['datafile']
         try:
@@ -98,3 +100,8 @@ class KarmmaConfig:
                 print("Using custom mass matrix...")
         except:
             self.inv_mass_matrix = None
+
+    def set_config_mocks(self,config_args_mocks):
+        self.N_theta = config_args_mocks['N_theta']
+        split_theta = config_args_mocks['theta_fid'].split(',')
+        self.thetafid = np.array([float(split_theta[i]) for i in range(self.N_theta)])

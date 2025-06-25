@@ -20,10 +20,12 @@ lmax     = 2 * nside - 1
 N_Z_BINS = config.analysis['nbins']
 shift    = config.analysis['shift']
 vargauss = config.analysis['vargauss']
-
+#=== For shape noise ================
 sigma_e  = config.analysis['sigma_e']
-
-cl = np.zeros((N_Z_BINS,N_Z_BINS,gen_lmax+1))
+N        = np.load(config.N_map)
+sigma    = sigma_e / np.sqrt(N + 1e-25)
+#=====================================
+cl       = np.zeros((N_Z_BINS,N_Z_BINS,gen_lmax+1))
 
 thetafid = torch.tensor(config.thetafid,dtype=torch.double)
 #============================================================
@@ -107,7 +109,7 @@ def get_LN_shear(y_maps):
         k_nf = np.exp(y_maps[i] + mean_g[i]) - shift[i]
         k = low_pass_filter(k_nf, nside)
         k_list.append(k)
-        g1, g2 = trf.conv2shear(torch.tensor(k), lmax)
+        g1, g2 = trf.conv2shear(torch.tensor(k), lmax,hp.pixwin(nside)[hp.Alm.getlm(lmax)[0]])
         g1 = g1.numpy() * mask
         g2 = g2.numpy() * mask
         g1_list.append(g1)
@@ -118,6 +120,13 @@ def get_LN_shear(y_maps):
     k_arr  = np.array(k_list)
     
     return g1, g2, k_arr  
+def get_g_obs(g1,g2,sigma):
+    g1_obs = np.zeros_like(g1)
+    g2_obs = np.zeros_like(g1)
+    for i in range(4):
+        g1_obs[i] = np.random.normal(g1[i],sigma[i]) * mask
+        g2_obs[i] = np.random.normal(g2[i],sigma[i]) * mask
+    return g1_obs,g2_obs
 
 def save_datafile(N,g1_obs,g2_obs,mask,outpath=config.datafile):
     hf = h5.File(outpath, 'w')
@@ -132,11 +141,7 @@ g1, g2, k_arr     = get_LN_shear(y_maps)
 
 y_maps            = get_y_maps()
 g1, g2, k_arr     = get_LN_shear(y_maps)
-#==========Figure this out!
-g1_obs = g1 
-g2_obs = g2   
-with h5.File('/home/ivanespinoza/KaRMMa/KaRMMa/data/des_y3/desy3_shear_data.h5', 'r') as f:
-    N    = f['N'][()]
-#g1_obs, g2_obs, N = get_mock_data(nside, nbins, [config.analysis['nbar'], config.analysis['sigma_e'], g1, g2, mask])        
-#==========Figure this out!
+
+g1_obs,g2_obs     = get_g_obs(g1,g2,sigma)
+
 save_datafile(N,g1_obs,g2_obs,mask)

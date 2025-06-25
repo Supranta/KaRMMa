@@ -10,7 +10,9 @@ class ScalarEmulator:
         self.N_td               = self.cosmology_training.shape[0]
         self.N                  = self.N_cosmo_params + 1
         self.N_params           = int(0.5*self.N*(self.N+1))
-        self.cosmology_mid      = 0.5 * (self.cosmology_training.max(axis=0) + self.cosmology_training.min(axis=0))
+        self.cosmology_max      = self.cosmology_training.max(axis=0)
+        self.cosmology_min      = self.cosmology_training.min(axis=0)
+        self.cosmology_mid      = 0.5 * (self.cosmology_max + self.cosmology_min)
         scalar                  = training_data[1].numpy()
         self.scalar_mean        = torch.Tensor(np.mean(scalar, axis=0)[np.newaxis]).to(torch.double)
         self.scalar_std         = torch.Tensor(np.std(scalar, axis=0)[np.newaxis]).to(torch.double)

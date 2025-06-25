@@ -28,3 +28,4 @@ mocks:
     #(Omega_m, sigma8, w, omegab, h, ns)
     N_theta: 6
     theta_fid: 0.279798753,0.87134582355,-1.0721294206,0.02237,0.7022,0.9649
+    N_map: data/des_y3/N.npy

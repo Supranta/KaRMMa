@@ -30,7 +30,7 @@ thetafid = torch.tensor(config.thetafid,dtype=torch.double)
 print("Initializing sampler....")
 tmp = np.zeros((nbins,hp.nside2npix(nside)))
 tmp = KarmmaSampler(tmp, tmp, tmp, tmp, cl, shift, vargauss, lmax, gen_lmax,
-                        shift_file=config.shift_file,mean_g_file=config.mean_g_file,ycl_file=config.y_cl_file)
+                        shift_file=config.shift_file,mean_g_file=config.mean_g_file,ycl_file=config.y_cl_file,thetafid=config.thetafid)
 print("Done initializing sampler....")
 
 ell, emm = hp.Alm.getlm(gen_lmax)

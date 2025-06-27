@@ -41,7 +41,7 @@ sigma = sigma_e / np.sqrt(N + 1e-25)
 
 print("Initializing sampler....")
 sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, cl, shift, vargauss, lmax, gen_lmax, pixwin=pixwin,
-                        emulator_file=config.emulator_file)
+                        shift_file=config.shift_file,mean_g_file=config.mean_g_file,ycl_file=config.y_cl_file,thetafid=config.thetafid)
      
 print("Done initializing sampler....")
 
@@ -50,9 +50,9 @@ samples, mcmc_kernel = sampler.sample(config.n_burn_in, config.n_samples, config
 def x2kappa(xlm_real, xlm_imag, theta):
     kappa_list = []
     xlm    = sampler.get_xlm(xlm_real, xlm_imag)
-    y_cl   = sampler.cl_emu.predict_emu(theta)
-    mean_g = sampler.mean_g_emu.predict_emu(theta)
-    shift  = sampler.shift_emu.predict_emu(theta)
+    y_cl   = sampler.cl_emu.predict(theta).reshape((1, N_Z_BINS, N_Z_BINS, -1))[0]
+    mean_g = sampler.mean_g_emu.predict(theta)[0]
+    shift  = sampler.shift_emu.predict(theta)[0]
     
     ylm    = sampler.apply_cl(xlm, y_cl)
     

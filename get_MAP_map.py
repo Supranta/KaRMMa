@@ -14,6 +14,11 @@ torch.set_num_threads(16)
 configfile = sys.argv[1]
 config     = KarmmaConfig(configfile)
 
+fast_model = (int(sys.argv[2])==1)
+if fast_model:
+    print("Using fast model...")
+else:
+    print("Using slow model...")
 nside    = config.analysis['nside']
 gen_lmax = 3 * nside - 1
 lmax     = 2 * nside - 1
@@ -67,10 +72,12 @@ def x2kappa(xlm_real, xlm_imag):
 
 # Run the optimization for 1000 steps
 from tqdm import trange
-for step in trange(2000):
-    #print("Step: %d"%(step))
+for step in trange(1000):
     # Compute the log probability of the data given the current values of mu and sigma
-    conditioned_model = pyro.condition(sampler.model, data={"xlm_real": xlm_real, "xlm_imag": xlm_imag})
+    if fast_model:
+        conditioned_model = pyro.condition(sampler.fast_model, data={"xlm_real": xlm_real, "xlm_imag": xlm_imag})
+    else:
+        conditioned_model = pyro.condition(sampler.model, data={"xlm_real": xlm_real, "xlm_imag": xlm_imag})
     trace = pyro.poutine.trace(conditioned_model).get_trace()
     log_prob = trace.log_prob_sum()
     
@@ -87,10 +94,14 @@ for step in trange(2000):
     optim.zero_grad()
     
     if(step%5==0):
-        kappa_gan_opt = x2kappa(xlm_real.detach(), xlm_imag.detach())
-        with h5.File(config.io_dir + '/kappa_MAP.h5', 'w') as f:
+        kappa_opt = x2kappa(xlm_real.detach(), xlm_imag.detach())
+        if fast_model:
+            filename=config.io_dir + '/kappa_MAP_fast.h5'
+        else:
+            filename=config.io_dir + '/kappa_MAP.h5'
+        with h5.File(filename, 'w') as f:
             f['xlm_real'] = xlm_real.detach().numpy()
             f['xlm_imag'] = xlm_imag.detach().numpy()
-            f['kappa']    = kappa_gan_opt
+            f['kappa']    = kappa_opt
             f['step']     = step
             f['loss']     = np.array(losses)

@@ -5,6 +5,7 @@ import pyro
 import pyro.distributions as dist
 from pyro.infer import MCMC, NUTS
 from .transforms import Alm2Map, conv2shear
+from .transforms_tomo import Alm2MapTomoMP, conv2shear_tomo
 import pickle
 from joblib import Parallel, delayed
 from scipy.special import eval_legendre
@@ -74,6 +75,8 @@ class KarmmaSampler:
         for i in range(self.N_Z_BINS):           
             self.mu[i] = np.log(self.shift[i]) - 0.5 * self.vargauss[i]            
         
+        self.mu_torch    = torch.tensor(self.mu[:,np.newaxis])
+        self.shift_torch = torch.tensor(self.shift[:,np.newaxis])
         print("Computing y_cl...")
         for i in range(self.N_Z_BINS):    
             for j in range(i+1):
@@ -141,8 +144,30 @@ class KarmmaSampler:
             pyro.sample(f'g1_obs_{i}', dist.Normal(g1[self.mask], self.sigma_obs[i,self.mask]), obs=self.g1_obs[i,self.mask])
             pyro.sample(f'g2_obs_{i}', dist.Normal(g2[self.mask], self.sigma_obs[i,self.mask]), obs=self.g2_obs[i,self.mask])
     
-    def sample(self, num_burn, num_samples, step_size=0.05, inv_mass_matrix=None, x_init=None):
-        kernel = NUTS(self.model, target_accept_prob=0.65, step_size=step_size)
+    def fast_model(self, prior_only=False):
+        ell, emm = hp.Alm.getlm(self.gen_lmax)
+
+        xlm_real = pyro.sample('xlm_real', dist.Normal(torch.zeros(self.N_Z_BINS, (ell > 1).sum(), dtype=torch.double),
+                                                       torch.ones(self.N_Z_BINS, (ell > 1).sum(), dtype=torch.double)))
+        xlm_imag = pyro.sample('xlm_imag', dist.Normal(torch.zeros(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=torch.double),
+                                                       torch.ones(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=torch.double)))
+          
+        xlm = self.get_xlm(xlm_real, xlm_imag)
+        y_cl = self.y_cl
+        
+        ylm    = self.apply_cl(xlm, y_cl)
+        y_maps = Alm2MapTomoMP.apply(ylm, self.nside, self.gen_lmax) + self.mu_torch
+        k_maps = torch.exp(y_maps) - self.shift_torch
+        g1_tomo, g2_tomo = conv2shear_tomo(k_maps, self.lmax, self.pixwin_ell_filter)
+        for i in range(self.N_Z_BINS):
+            pyro.sample(f'g1_obs_{i}', dist.Normal(g1_tomo[i,self.mask], self.sigma_obs[i,self.mask]), obs=self.g1_obs[i,self.mask])
+            pyro.sample(f'g2_obs_{i}', dist.Normal(g2_tomo[i,self.mask], self.sigma_obs[i,self.mask]), obs=self.g2_obs[i,self.mask])
+
+    def sample(self, num_burn, num_samples, step_size=0.05, fast_model=False, inv_mass_matrix=None, x_init=None):
+        if fast_model:
+            kernel = NUTS(self.fast_model, target_accept_prob=0.65, step_size=step_size)
+        else:
+            kernel = NUTS(self.model, target_accept_prob=0.65, step_size=step_size)
         if inv_mass_matrix is not None:
             kernel.mass_matrix_adapter.inverse_mass_matrix = inv_mass_matrix
         x_real_init = 0.3 * torch.randn((self.N_Z_BINS, (self.ell > 1).sum()), dtype=torch.double)

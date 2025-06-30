@@ -18,6 +18,8 @@ gen_lmax = 3 * nside - 1
 lmax     = 2 * nside 
 N_Z_BINS = config.analysis['nbins']
 pixwin   = config.analysis['pixwin']
+mask         = hp.fitsfunc.read_map(config.maskfile)
+boolean_mask = mask.astype(bool)
 #=== For shape noise ================
 sigma_e  = config.analysis['sigma_e']
 N        = np.load(config.N_map)
@@ -31,9 +33,9 @@ tmp = KarmmaSampler(tmp, tmp, tmp, tmp, lmax, gen_lmax,pixwin=pixwin,shift_file=
 print("Done initializing sampler....")
 
 ell, emm = hp.Alm.getlm(gen_lmax)
-ycl    = tmp.cl_emu.predict(thetafid).reshape((1, N_Z_BINS, N_Z_BINS, -1))[0].numpy()
-mean_g = tmp.mean_g_emu.predict(thetafid)[0].numpy()
-shift  = tmp.shift_emu.predict(thetafid)[0].numpy()
+ycl      = tmp.cl_emu.predict(thetafid).reshape((1, N_Z_BINS, N_Z_BINS, -1))[0].numpy()
+mean_g   = tmp.mean_g_emu.predict(thetafid)[0].numpy()
+shift    = tmp.shift_emu.predict(thetafid)[0].numpy()
 
 def eigvec_matmul(A, x):
     y = np.zeros_like(x)
@@ -73,22 +75,19 @@ def generate_xlm():
     xlm_imag = np.random.normal(size=(nbins, ((ell > 1) & (emm > 0)).sum()))
 
     xlm = get_xlm(xlm_real, xlm_imag)
-    return xlm
+    return xlm, [xlm_real,xlm_imag]
 
 def generate_mock_y_lm():
-    xlm = generate_xlm()
-    return apply_cl(xlm, ycl)
-
-mask    = hp.fitsfunc.read_map(config.maskfile)
-boolean_mask = mask.astype(bool)
+    xlm,_xlm = generate_xlm()
+    return apply_cl(xlm, ycl), _xlm
 
 def get_y_maps():
-    y_lm = generate_mock_y_lm()
+    y_lm,xlm = generate_mock_y_lm()
     y_maps = []
     for i in range(nbins):
         y_map = hp.alm2map(np.ascontiguousarray(y_lm[i]), nside, lmax=gen_lmax, pol=False)
         y_maps.append(y_map)    
-    return np.array(y_maps)    
+    return np.array(y_maps),xlm    
 
 def low_pass_filter(map,nside):
     map_lm = hp.map2alm(map,lmax=3*nside-1)
@@ -124,20 +123,21 @@ def get_g_obs(g1,g2,sigma):
         g2_obs[i] = np.random.normal(g2[i],sigma[i]) * mask
     return g1_obs,g2_obs
 
-def save_datafile(N,g1_obs,g2_obs,mask,outpath=config.datafile):
+def save_datafile(N,g1_obs,g2_obs,mask,xlm,kappa,theta,outpath=config.datafile):
     hf = h5.File(outpath, 'w')
-    hf.create_dataset('N',data      = N)
-    hf.create_dataset('g1_obs',data = g1_obs)
-    hf.create_dataset('g2_obs',data = g2_obs)
-    hf.create_dataset('mask',data   = mask)
+    hf.create_dataset('N',       data   = N)
+    hf.create_dataset('g1_obs',  data   = g1_obs)
+    hf.create_dataset('g2_obs',  data   = g2_obs)
+    hf.create_dataset('xlm_real',data   = xlm[0])
+    hf.create_dataset('xlm_imag',data   = xlm[1])
+    hf.create_dataset('kappa',   data   = kappa)
+    hf.create_dataset('mask',    data   = mask)
+    hf.create_dataset('theta',   data   = theta)
     hf.close()
 
-y_maps            = get_y_maps()
+y_maps,xlm        = get_y_maps()
 g1, g2, k_arr     = get_LN_shear(y_maps)
-
-y_maps            = get_y_maps()
-g1, g2, k_arr     = get_LN_shear(y_maps)
-
 g1_obs,g2_obs     = get_g_obs(g1,g2,sigma)
 
-save_datafile(N,g1_obs,g2_obs,mask)
+print('Saving...')
+save_datafile(N,g1_obs,g2_obs,mask,xlm,k_arr,config.thetafid)

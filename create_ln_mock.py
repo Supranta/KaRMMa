@@ -118,7 +118,7 @@ def get_LN_shear(y_maps):
 def get_g_obs(g1,g2,sigma):
     g1_obs = np.zeros_like(g1)
     g2_obs = np.zeros_like(g1)
-    for i in range(4):
+    for i in range(N_Z_BINS):
         g1_obs[i] = np.random.normal(g1[i],sigma[i]) * mask
         g2_obs[i] = np.random.normal(g2[i],sigma[i]) * mask
     return g1_obs,g2_obs

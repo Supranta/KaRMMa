@@ -19,15 +19,7 @@ class KarmmaConfig:
         nbins = int(config_args_analysis['nbins'])
         nside = int(config_args_analysis['nside'])
         sigma_e = float(config_args_analysis['sigma_e'])
-        
-        split_shift = config_args_analysis['shift'].split(',')
-        shift = np.array([float(split_shift[i]) for i in range(nbins)])
-        
-        split_vargauss = config_args_analysis['vargauss'].split(',')
-        vargauss = np.array([float(split_vargauss[i]) for i in range(nbins)])
-        
-        cl = np.load(config_args_analysis['cl_file'])
-       
+              
         try:
             pixwin = np.load(config_args_analysis['pixwin'])
             print("USING EMPIRICAL WINDOW FUNCTION!")
@@ -37,9 +29,6 @@ class KarmmaConfig:
         data_dict = {'nbins': nbins, 
                      'nside': nside, 
                      'sigma_e': sigma_e, 
-                     'shift': shift,
-                     'vargauss': vargauss,
-                     'cl': cl,
                      'pixwin': pixwin
                     }
 
@@ -93,13 +82,6 @@ class KarmmaConfig:
             self.step_size = float(config_args_mcmc['step_size'])
         except:
             self.step_size = 0.05
-        try:
-            if config_args_mcmc['custom_mass_matrix']:
-                with open(self.io_dir+'/mass_matrix_inv.pkl', 'rb') as f:
-                    self.inv_mass_matrix = pickle.load(f)
-                print("Using custom mass matrix...")
-        except:
-            self.inv_mass_matrix = None
 
     def set_config_mocks(self,config_args_mocks):
         self.N_theta  = config_args_mocks['N_theta']

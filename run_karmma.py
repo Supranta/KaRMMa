@@ -6,7 +6,6 @@ import healpy as hp
 from karmma import KarmmaSampler, KarmmaConfig
 from karmma.utils import *
 import karmma.transforms as trf
-from scipy.stats import norm, poisson
 import torch
 
 torch.set_num_threads(16)
@@ -17,16 +16,9 @@ config     = KarmmaConfig(configfile)
 nside    = config.analysis['nside']
 gen_lmax = 3 * nside - 1
 lmax     = 2 * nside
-
 N_Z_BINS = config.analysis['nbins']
-shift    = config.analysis['shift']
-vargauss = config.analysis['vargauss']
-
 sigma_e  = config.analysis['sigma_e']
-
-cl     = config.analysis['cl'][:,:,:(gen_lmax + 1)]
-pixwin = config.analysis['pixwin']
-
+pixwin   = config.analysis['pixwin']
 #============= Load data =======================
 g1_obs = config.data['g1_obs']
 g2_obs = config.data['g2_obs']
@@ -40,12 +32,12 @@ sigma = sigma_e / np.sqrt(N + 1e-25)
 #============================================================
 
 print("Initializing sampler....")
-sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, cl, shift, vargauss, lmax, gen_lmax, pixwin=pixwin,
+sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, lmax, gen_lmax, pixwin=pixwin,
                         shift_file=config.shift_file,mean_g_file=config.mean_g_file,ycl_file=config.y_cl_file,thetafid=config.thetafid)
      
 print("Done initializing sampler....")
 
-samples, mcmc_kernel = sampler.sample(config.n_burn_in, config.n_samples, config.step_size, inv_mass_matrix=config.inv_mass_matrix, x_init=config.x_init)
+samples, mcmc_kernel = sampler.sample(config.n_burn_in, config.n_samples, config.step_size, x_init=config.x_init)
 
 def x2kappa(xlm_real, xlm_imag, theta):
     kappa_list = []
@@ -53,7 +45,6 @@ def x2kappa(xlm_real, xlm_imag, theta):
     y_cl   = sampler.cl_emu.predict(theta).reshape((1, N_Z_BINS, N_Z_BINS, -1))[0]
     mean_g = sampler.mean_g_emu.predict(theta)[0]
     shift  = sampler.shift_emu.predict(theta)[0]
-    
     ylm    = sampler.apply_cl(xlm, y_cl)
     
     for i in range(N_Z_BINS):

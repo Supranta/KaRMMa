@@ -2,9 +2,6 @@ analysis:
     nbins: 4
     nside: 256 
     sigma_e: 0.261
-    shift: 0.00416708,0.0085054,0.01561475,0.0236787 
-    vargauss: 0.18815055,0.14421919,0.1114475,0.06784224
-    cl_file: data/des_y3/cl.npy
     pixwin: data/healpix/hybrid_pixwin_256.npy
 
 io:     
@@ -17,7 +14,6 @@ mcmc:
     n_burn_in: 200
     n_samples: 200
     step_size: 0.2
-    custom_mass_matrix: true
     
 cosmology:
     shift_file: data/des_y3/shift_training_data.pt

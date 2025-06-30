@@ -15,24 +15,19 @@ config         = KarmmaConfig(configfile)
 nside    = config.analysis['nside']
 nbins    = config.analysis['nbins']
 gen_lmax = 3 * nside - 1
-lmax     = 2 * nside - 1
-
+lmax     = 2 * nside 
 N_Z_BINS = config.analysis['nbins']
-shift    = config.analysis['shift']
-vargauss = config.analysis['vargauss']
+pixwin   = config.analysis['pixwin']
 #=== For shape noise ================
 sigma_e  = config.analysis['sigma_e']
 N        = np.load(config.N_map)
 sigma    = sigma_e / np.sqrt(N + 1e-25)
 #=====================================
-cl       = np.zeros((N_Z_BINS,N_Z_BINS,gen_lmax+1))
-
 thetafid = torch.tensor(config.thetafid,dtype=torch.double)
 #============================================================
 print("Initializing sampler....")
 tmp = np.zeros((nbins,hp.nside2npix(nside)))
-tmp = KarmmaSampler(tmp, tmp, tmp, tmp, cl, shift, vargauss, lmax, gen_lmax,
-                        shift_file=config.shift_file,mean_g_file=config.mean_g_file,ycl_file=config.y_cl_file,thetafid=config.thetafid)
+tmp = KarmmaSampler(tmp, tmp, tmp, tmp, lmax, gen_lmax,pixwin=pixwin,shift_file=config.shift_file,mean_g_file=config.mean_g_file,ycl_file=config.y_cl_file,thetafid=config.thetafid)
 print("Done initializing sampler....")
 
 ell, emm = hp.Alm.getlm(gen_lmax)
@@ -107,9 +102,10 @@ def get_LN_shear(y_maps):
     k_list = []
     for i in range(nbins):
         k_nf = np.exp(y_maps[i] + mean_g[i]) - shift[i]
-        k = low_pass_filter(k_nf, nside)
+        #k = low_pass_filter(k_nf, nside)
+        k = k_nf
         k_list.append(k)
-        g1, g2 = trf.conv2shear(torch.tensor(k), lmax,hp.pixwin(nside)[hp.Alm.getlm(lmax)[0]])
+        g1, g2 = trf.conv2shear(torch.tensor(k), lmax,tmp.pixwin_ell_filter)
         g1 = g1.numpy() * mask
         g2 = g2.numpy() * mask
         g1_list.append(g1)

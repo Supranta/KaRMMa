@@ -89,19 +89,12 @@ def get_y_maps():
         y_maps.append(y_map)    
     return np.array(y_maps),xlm    
 
-def low_pass_filter(map,nside):
-    map_lm = hp.map2alm(map,lmax=3*nside-1)
-    ell,emm = hp.Alm.getlm(3*nside-1)
-    map_lm[ell>2*nside]=0.+0.*1j
-    return hp.alm2map(map_lm,nside=nside)
-
 def get_LN_shear(y_maps):
     g1_list = []
     g2_list = []
     k_list = []
     for i in range(nbins):
         k_nf = np.exp(y_maps[i] + mean_g[i]) - shift[i]
-        #k = low_pass_filter(k_nf, nside)
         k = k_nf
         k_list.append(k)
         g1, g2 = trf.conv2shear(torch.tensor(k), lmax,tmp.pixwin_ell_filter)

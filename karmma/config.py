@@ -78,6 +78,7 @@ class KarmmaConfig:
     def set_config_mcmc(self, config_args_mcmc):
         self.n_burn_in = config_args_mcmc['n_burn_in']
         self.n_samples = config_args_mcmc['n_samples']
+        self.MP        = config_args_mcmc['MP']
         try:
             self.step_size = float(config_args_mcmc['step_size'])
         except:

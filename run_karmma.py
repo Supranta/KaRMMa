@@ -37,7 +37,7 @@ sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, lmax, gen_lmax, pixwin=pixw
      
 print("Done initializing sampler....")
 
-samples, mcmc_kernel = sampler.sample(config.n_burn_in, config.n_samples, config.step_size, x_init=config.x_init)
+samples, mcmc_kernel = sampler.sample(config.n_burn_in, config.n_samples, config.step_size, x_init=config.x_init,MP=config.MP)
 
 def x2kappa(xlm_real, xlm_imag, theta):
     kappa_list = []

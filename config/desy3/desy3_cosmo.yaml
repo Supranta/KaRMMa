@@ -14,6 +14,7 @@ mcmc:
     n_burn_in: 200
     n_samples: 200
     step_size: 0.2
+    MP: False
     
 cosmology:
     shift_file: data/des_y3/shift_training_data.pt

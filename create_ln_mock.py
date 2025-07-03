@@ -88,7 +88,7 @@ def get_y_maps():
         y_map = hp.alm2map(np.ascontiguousarray(y_lm[i]), nside, lmax=gen_lmax, pol=False)
         y_maps.append(y_map)    
     return np.array(y_maps),xlm    
-
+#ola
 def get_LN_shear(y_maps):
     g1_list = []
     g2_list = []

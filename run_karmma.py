@@ -20,12 +20,11 @@ lmax     = 2 * nside
 
 N_Z_BINS = config.analysis['nbins']
 shift    = config.analysis['shift']
-vargauss = config.analysis['vargauss']
+mu       = config.analysis['mu']
 
 sigma_e  = config.analysis['sigma_e']
 
-cl     = config.analysis['cl'][:,:,:(gen_lmax + 1)]
-#cl_emu = None
+y_cl     = config.analysis['ycl'][:,:,:(gen_lmax + 1)]
 pixwin = config.analysis['pixwin']
 
 #============= Load data =======================
@@ -41,7 +40,7 @@ sigma = sigma_e / np.sqrt(N + 1e-25)
 #============================================================
 
 print("Initializing sampler....")
-sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, cl, shift, vargauss, lmax, gen_lmax, pixwin=pixwin)
+sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, y_cl, shift, mu, lmax, gen_lmax, pixwin=pixwin)
      
 print("Done initializing sampler....")
 

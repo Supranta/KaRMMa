@@ -11,21 +11,33 @@ class KarmmaConfig:
         self.analysis = self.set_config_analysis(config_args['analysis'])
         self.set_config_io(config_args['io'])
         self.set_config_mcmc(config_args['mcmc'])
-            
+    
+    def reshape_y_cl(self, y_cl, nbins):
+        N_ell = y_cl.shape[1]
+        y_cl_reshaped = np.zeros((nbins, nbins, N_ell))
+        ind = 0
+        for i in range(nbins):
+            for j in range(i+1):
+                ycl_ij = y_cl[ind]
+                y_cl_reshaped[i,j] = ycl_ij
+                y_cl_reshaped[j,i] = ycl_ij
+                ind += 1
+        return y_cl_reshaped
+
     def set_config_analysis(self, config_args_analysis):
         print("Setting config data....")
         nbins = int(config_args_analysis['nbins'])
         nside = int(config_args_analysis['nside'])
         sigma_e = float(config_args_analysis['sigma_e'])
         
-        split_shift = config_args_analysis['shift'].split(',')
-        shift = np.array([float(split_shift[i]) for i in range(nbins)])
-        
-        split_vargauss = config_args_analysis['vargauss'].split(',')
-        vargauss = np.array([float(split_vargauss[i]) for i in range(nbins)])
-        
-        cl = np.load(config_args_analysis['cl_file'])
-       
+        lognorm_params_file = config_args_analysis['lognorm_params_file']
+        lognorm_params = pickle.load(open(lognorm_params_file, 'rb'))
+
+        y_cl_1d = lognorm_params['y_cl']
+        y_cl    = self.reshape_y_cl(y_cl_1d, nbins)
+        shift = lognorm_params['shift']
+        mu    = lognorm_params['mu']
+
         try:
             pixwin = np.load(config_args_analysis['pixwin'])
             print("USING EMPIRICAL WINDOW FUNCTION!")
@@ -36,8 +48,8 @@ class KarmmaConfig:
                      'nside': nside, 
                      'sigma_e': sigma_e, 
                      'shift': shift,
-                     'vargauss': vargauss,
-                     'cl': cl,
+                     'mu': mu,
+                     'ycl': y_cl,
                      'pixwin': pixwin
                     }
 

@@ -40,11 +40,13 @@ sigma = sigma_e / np.sqrt(N + 1e-25)
 #============================================================
 
 print("Initializing sampler....")
-sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, y_cl, shift, mu, lmax, gen_lmax, pixwin=pixwin)
+sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, y_cl, shift, mu, 
+                            kappa_std=config.kappa_std, lmax=lmax, gen_lmax=gen_lmax, pixwin=pixwin, gen=config.gen)
      
 print("Done initializing sampler....")
 
-samples, mcmc_kernel = sampler.sample(config.n_burn_in, config.n_samples, config.step_size, inv_mass_matrix=config.inv_mass_matrix, x_init=config.x_init)
+samples, mcmc_kernel = sampler.sample(config.n_burn_in, config.n_samples, config.step_size, 
+                                        inv_mass_matrix=config.inv_mass_matrix, x_init=config.x_init)
 
 def x2kappa(xlm_real, xlm_imag):
     kappa_list = []
@@ -55,7 +57,12 @@ def x2kappa(xlm_real, xlm_imag):
         k = k.numpy()
         k_filtered = get_filtered_map(k, sampler.pixwin_ell_filter.numpy(), nside)
         kappa_list.append(k_filtered)
-    return np.array(kappa_list)
+    k_ln = torch.tensor(np.array(kappa_list))
+    if config.gen is not None:
+        k_maps = sampler.kln2gan(k_ln).detach()
+    else:
+        k_maps = k_ln
+    return k_maps.numpy()
 
 print("Saving samples...")
 for i, (xlm_real, xlm_imag) in enumerate(zip(samples['xlm_real'], samples['xlm_imag'])):

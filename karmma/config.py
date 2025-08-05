@@ -1,8 +1,11 @@
 import numpy as np
+import healpy as hp
 import h5py as h5
 import pickle
 import yaml
 import os
+import torch
+from .gansky import *
 
 class KarmmaConfig:
     def __init__(self, configfile):
@@ -11,30 +14,23 @@ class KarmmaConfig:
         self.analysis = self.set_config_analysis(config_args['analysis'])
         self.set_config_io(config_args['io'])
         self.set_config_mcmc(config_args['mcmc'])
-    
-    def reshape_y_cl(self, y_cl, nbins):
-        N_ell = y_cl.shape[1]
-        y_cl_reshaped = np.zeros((nbins, nbins, N_ell))
-        ind = 0
-        for i in range(nbins):
-            for j in range(i+1):
-                ycl_ij = y_cl[ind]
-                y_cl_reshaped[i,j] = ycl_ij
-                y_cl_reshaped[j,i] = ycl_ij
-                ind += 1
-        return y_cl_reshaped
+        if 'gan' in config_args:
+            self.set_config_gan(config_args['gan'])
+        else:
+            self.gen       = None
+            self.kappa_std = None
 
     def set_config_analysis(self, config_args_analysis):
         print("Setting config data....")
-        nbins = int(config_args_analysis['nbins'])
-        nside = int(config_args_analysis['nside'])
+        self.nbins = int(config_args_analysis['nbins'])
+        self.nside = int(config_args_analysis['nside'])
         sigma_e = float(config_args_analysis['sigma_e'])
         
         lognorm_params_file = config_args_analysis['lognorm_params_file']
         lognorm_params = pickle.load(open(lognorm_params_file, 'rb'))
 
         y_cl_1d = lognorm_params['y_cl']
-        y_cl    = self.reshape_y_cl(y_cl_1d, nbins)
+        y_cl    = self.reshape_y_cl(y_cl_1d, self.nbins)
         shift = lognorm_params['shift']
         mu    = lognorm_params['mu']
 
@@ -44,8 +40,8 @@ class KarmmaConfig:
         except:
             pixwin='healpix'
 
-        data_dict = {'nbins': nbins, 
-                     'nside': nside, 
+        data_dict = {'nbins': self.nbins, 
+                     'nside': self.nside, 
                      'sigma_e': sigma_e, 
                      'shift': shift,
                      'mu': mu,
@@ -106,3 +102,33 @@ class KarmmaConfig:
                 print("Using custom mass matrix...")
         except:
             self.inv_mass_matrix = None
+
+    def set_config_gan(self, config_args_gan):
+        self.gan_path = config_args_gan['model']
+        num_channels  = config_args_gan['num_channels']
+        num_layers    = config_args_gan['num_layers']
+
+        split_std      = config_args_gan['kappa_std'].split(',')
+        self.kappa_std = np.array([float(split_std[i]) for i in range(self.nbins)])
+
+        ones_mask = np.ones(hp.nside2npix(self.nside), dtype=bool)
+        device='cpu'
+        avg_mat = compute_avg_mat(self.nside, ones_mask, True).to(device)
+        self.gen = Generator(self.nbins, avg_mat, num_channels=num_channels, num_layers=num_layers).to(device)
+        ckpt = torch.load(self.gan_path, map_location=device)
+        
+        self.gen.load_state_dict(ckpt['gen_ema'])
+        self.gen = self.gen.double()
+
+    def reshape_y_cl(self, y_cl, nbins):
+        N_ell = y_cl.shape[1]
+        y_cl_reshaped = np.zeros((nbins, nbins, N_ell))
+        ind = 0
+        for j in range(nbins):
+            for k in range(j, nbins):
+                ycl_jk = y_cl[ind]
+                y_cl_reshaped[j,k] = ycl_jk
+                y_cl_reshaped[k,j] = ycl_jk
+                ind += 1
+        return y_cl_reshaped
+

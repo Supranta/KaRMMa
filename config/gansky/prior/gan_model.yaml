@@ -1,0 +1,24 @@
+analysis:
+    nbins: 4
+    nside: 256 
+    sigma_e: 0.261
+    lognorm_params_file: data/gansky/lognorm_params_256.pkl
+    cl_file: data/des_y3/cl.npy
+    pixwin: data/healpix/hybrid_pixwin_256.npy
+
+io:     
+    datafile: data/des_y3/desy3_shear_data.h5
+    io_dir: output/gansky/prior/gan_model
+    maskfile: data/gansky/ones_mask.fits
+    
+mcmc:
+    n_burn_in: 200
+    n_samples: 200
+    step_size: 0.2
+    custom_mass_matrix: true
+
+gan:
+    model: data/gansky/models/3layer.pt 
+    num_channels: 16
+    num_layers: 3
+    kappa_std: 0.002336,0.003826,0.005711,0.006866

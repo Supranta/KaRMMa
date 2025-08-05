@@ -112,7 +112,7 @@ class KarmmaConfig:
         self.kappa_std = np.array([float(split_std[i]) for i in range(self.nbins)])
 
         ones_mask = np.ones(hp.nside2npix(self.nside), dtype=bool)
-        device='cpu'
+        device='cuda'
         avg_mat = compute_avg_mat(self.nside, ones_mask, True).to(device)
         self.gen = Generator(self.nbins, avg_mat, num_channels=num_channels, num_layers=num_layers).to(device)
         ckpt = torch.load(self.gan_path, map_location=device)

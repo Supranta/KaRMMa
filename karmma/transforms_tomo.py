@@ -8,6 +8,8 @@ import multiprocessing as mp
 # Worker functions for multiprocessing (must be at module level)
 # ========================================================================
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 def mp_map2alm_worker(args):
     """Worker function for Map2Alm multiprocessing"""
     i, m_data, lmax = args
@@ -122,7 +124,7 @@ class Alm2MapTomoMP(torch.autograd.Function):
         ctx.max_workers = max_workers
         
         # Convert to numpy and prepare arguments
-        args_list = [(i, alms_tomo[i].numpy(), nside, lmax) 
+        args_list = [(i, alms_tomo[i].cpu().numpy(), nside, lmax) 
                      for i in range(ctx.n_tomo)]
         
         # Multiprocessing approach
@@ -131,7 +133,7 @@ class Alm2MapTomoMP(torch.autograd.Function):
         
         # Sort results by index and stack into tensor
         results.sort(key=lambda x: x[0])
-        m_tomo = torch.stack([torch.tensor(result[1]) for result in results])
+        m_tomo = torch.stack([torch.tensor(result[1], device=device) for result in results])
         return m_tomo
     
     @staticmethod
@@ -142,7 +144,7 @@ class Alm2MapTomoMP(torch.autograd.Function):
         max_workers = ctx.max_workers
         
         # Prepare arguments for parallel backward
-        args_list = [(i, grad_output[i].numpy(), lmax, nside) for i in range(n_tomo)]
+        args_list = [(i, grad_output[i].cpu().numpy(), lmax, nside) for i in range(n_tomo)]
         
         # Multiprocessing in backward pass
         with mp.Pool(processes=max_workers) as pool:
@@ -150,7 +152,7 @@ class Alm2MapTomoMP(torch.autograd.Function):
         
         # Sort and stack results
         results.sort(key=lambda x: x[0])
-        grad_alms_tomo = torch.stack([torch.tensor(result[1]) for result in results])
+        grad_alms_tomo = torch.stack([torch.tensor(result[1], device=device) for result in results])
         return grad_alms_tomo, None, None, None
 
 class Map2AlmTomoMP(torch.autograd.Function):
@@ -163,7 +165,7 @@ class Map2AlmTomoMP(torch.autograd.Function):
         ctx.max_workers = max_workers
         
         # Convert to numpy and prepare arguments
-        args_list = [(i, m_tomo[i].numpy(), lmax) 
+        args_list = [(i, m_tomo[i].cpu().numpy(), lmax) 
                      for i in range(ctx.n_tomo)]
         
         # Multiprocessing approach
@@ -172,7 +174,7 @@ class Map2AlmTomoMP(torch.autograd.Function):
         
         # Sort results by index and stack into tensor
         results.sort(key=lambda x: x[0])
-        alm_tomo = torch.stack([torch.tensor(result[1]) for result in results])
+        alm_tomo = torch.stack([torch.tensor(result[1], device=device) for result in results])
         return alm_tomo
     
     @staticmethod
@@ -183,7 +185,7 @@ class Map2AlmTomoMP(torch.autograd.Function):
         max_workers = ctx.max_workers
         
         # Prepare arguments for parallel backward
-        args_list = [(i, grad_output[i].numpy(), nside, lmax) for i in range(n_tomo)]
+        args_list = [(i, grad_output[i].cpu().numpy(), nside, lmax) for i in range(n_tomo)]
         
         # Multiprocessing in backward pass
         with mp.Pool(processes=max_workers) as pool:
@@ -191,7 +193,7 @@ class Map2AlmTomoMP(torch.autograd.Function):
         
         # Sort and stack results
         results.sort(key=lambda x: x[0])
-        grad_m_tomo = torch.stack([torch.tensor(result[1]) for result in results])
+        grad_m_tomo = torch.stack([torch.tensor(result[1], device=device) for result in results])
         return grad_m_tomo, None, None
 
 class Alm2MapSpinTomoMP(torch.autograd.Function):
@@ -204,7 +206,7 @@ class Alm2MapSpinTomoMP(torch.autograd.Function):
         ctx.max_workers = max_workers
         
         # Convert to numpy and prepare arguments
-        args_list = [(i, elm_tomo[i].numpy(), blm_tomo[i].numpy(), nside, lmax) 
+        args_list = [(i, elm_tomo[i].cpu().numpy(), blm_tomo[i].cpu().numpy(), nside, lmax) 
                      for i in range(ctx.n_tomo)]
         
         # Multiprocessing approach
@@ -213,8 +215,8 @@ class Alm2MapSpinTomoMP(torch.autograd.Function):
         
         # Sort results by index and stack into tensors
         results.sort(key=lambda x: x[0])
-        q_tomo = torch.stack([torch.tensor(result[1]) for result in results])
-        u_tomo = torch.stack([torch.tensor(result[2]) for result in results])
+        q_tomo = torch.stack([torch.tensor(result[1], device=device) for result in results])
+        u_tomo = torch.stack([torch.tensor(result[2], device=device) for result in results])
         return q_tomo, u_tomo
     
     @staticmethod
@@ -225,7 +227,7 @@ class Alm2MapSpinTomoMP(torch.autograd.Function):
         max_workers = ctx.max_workers
         
         # Prepare arguments for parallel backward
-        args_list = [(i, q_grad_tomo[i].numpy(), u_grad_tomo[i].numpy(), lmax, nside) 
+        args_list = [(i, q_grad_tomo[i].cpu().numpy(), u_grad_tomo[i].cpu().numpy(), lmax, nside) 
                      for i in range(n_tomo)]
         
         # Multiprocessing in backward pass
@@ -234,8 +236,8 @@ class Alm2MapSpinTomoMP(torch.autograd.Function):
         
         # Sort and stack results
         results.sort(key=lambda x: x[0])
-        elm_grad_tomo = torch.stack([torch.tensor(result[1]) for result in results])
-        blm_grad_tomo = torch.stack([torch.tensor(result[2]) for result in results])
+        elm_grad_tomo = torch.stack([torch.tensor(result[1], device=device) for result in results])
+        blm_grad_tomo = torch.stack([torch.tensor(result[2], device=device) for result in results])
         return elm_grad_tomo, blm_grad_tomo, None, None, None
 
 class Map2AlmSpinTomoMP(torch.autograd.Function):
@@ -248,7 +250,7 @@ class Map2AlmSpinTomoMP(torch.autograd.Function):
         ctx.max_workers = max_workers
         
         # Convert to numpy and prepare arguments
-        args_list = [(i, q_tomo[i].numpy(), u_tomo[i].numpy(), lmax) 
+        args_list = [(i, q_tomo[i].cpu().numpy(), u_tomo[i].cpu().numpy(), lmax) 
                      for i in range(ctx.n_tomo)]
         
         # Multiprocessing approach
@@ -257,8 +259,8 @@ class Map2AlmSpinTomoMP(torch.autograd.Function):
         
         # Sort results by index and stack into tensors
         results.sort(key=lambda x: x[0])
-        elm_tomo = torch.stack([torch.tensor(result[1]) for result in results])
-        blm_tomo = torch.stack([torch.tensor(result[2]) for result in results])
+        elm_tomo = torch.stack([torch.tensor(result[1], device=device) for result in results])
+        blm_tomo = torch.stack([torch.tensor(result[2], device=device) for result in results])
         return elm_tomo, blm_tomo
     
     @staticmethod
@@ -269,7 +271,7 @@ class Map2AlmSpinTomoMP(torch.autograd.Function):
         max_workers = ctx.max_workers
         
         # Prepare arguments for parallel backward
-        args_list = [(i, elm_grad_tomo[i].numpy(), blm_grad_tomo[i].numpy(), nside, lmax) 
+        args_list = [(i, elm_grad_tomo[i].cpu().numpy(), blm_grad_tomo[i].cpu().numpy(), nside, lmax) 
                      for i in range(n_tomo)]
         
         # Multiprocessing in backward pass
@@ -278,8 +280,8 @@ class Map2AlmSpinTomoMP(torch.autograd.Function):
         
         # Sort and stack results
         results.sort(key=lambda x: x[0])
-        q_grad_tomo = torch.stack([torch.tensor(result[1]) for result in results])
-        u_grad_tomo = torch.stack([torch.tensor(result[2]) for result in results])
+        q_grad_tomo = torch.stack([torch.tensor(result[1], device=device) for result in results])
+        u_grad_tomo = torch.stack([torch.tensor(result[2], device=device) for result in results])
         return q_grad_tomo, u_grad_tomo, None, None
 
 class UDGradeTomoMP(torch.autograd.Function):
@@ -292,7 +294,7 @@ class UDGradeTomoMP(torch.autograd.Function):
         ctx.max_workers = max_workers
         
         # Convert to numpy and prepare arguments
-        args_list = [(i, m_tomo[i].numpy(), out_nside) 
+        args_list = [(i, m_tomo[i].cpu().numpy(), out_nside) 
                      for i in range(ctx.n_tomo)]
         
         # Multiprocessing approach
@@ -301,7 +303,7 @@ class UDGradeTomoMP(torch.autograd.Function):
         
         # Sort results by index and stack into tensor
         results.sort(key=lambda x: x[0])
-        ud_m_tomo = torch.stack([torch.tensor(result[1]) for result in results])
+        ud_m_tomo = torch.stack([torch.tensor(result[1], device=device) for result in results])
         return ud_m_tomo
     
     @staticmethod
@@ -312,7 +314,7 @@ class UDGradeTomoMP(torch.autograd.Function):
         max_workers = ctx.max_workers
         
         # Prepare arguments for parallel backward
-        args_list = [(i, grad_output[i].numpy(), in_nside, out_nside) for i in range(n_tomo)]
+        args_list = [(i, grad_output[i].cpu().numpy(), in_nside, out_nside) for i in range(n_tomo)]
         
         # Multiprocessing in backward pass
         with mp.Pool(processes=max_workers) as pool:
@@ -320,7 +322,7 @@ class UDGradeTomoMP(torch.autograd.Function):
         
         # Sort and stack results
         results.sort(key=lambda x: x[0])
-        grad_tomo = torch.stack([torch.tensor(result[1]) for result in results])
+        grad_tomo = torch.stack([torch.tensor(result[1], device=device) for result in results])
         return grad_tomo, None, None
 
 # ========================================================================
@@ -341,7 +343,7 @@ def shear2conv_tomo(g1_tomo, g2_tomo, lmax=None, max_workers=4):
     # Apply conversion from shear to convergence
     lmax_actual = hp.Alm.getlmax(gelm_tomo.shape[1])
     l, m = hp.Alm.getlm(lmax_actual)
-    l = torch.tensor(l, dtype=torch.double)
+    l = torch.tensor(l, dtype=torch.double, device=device)
     
     good_ls = l > 1
     fac = torch.zeros_like(l)
@@ -378,7 +380,7 @@ def conv2shear_tomo(k_tomo, lmax=None, pixwin=None, max_workers=4):
     # Apply conversion from convergence to shear
     lmax_actual = hp.Alm.getlmax(kelm_tomo.shape[1])
     l, m = hp.Alm.getlm(lmax_actual)
-    l = torch.tensor(l, dtype=torch.double)
+    l = torch.tensor(l, dtype=torch.double, device=device)
     
     good_ls = l > 0
     fac = torch.zeros_like(l)

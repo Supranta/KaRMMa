@@ -28,6 +28,8 @@ class KarmmaSampler:
         self.kappa_std = kappa_std
 
         self.dtype = torch.double
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.sqrt_2 = torch.sqrt(torch.Tensor([2.])).to(self.device)
 
         self.nside = hp.get_nside(self.g1_obs)
         self.lmax = 2 * self.nside if not lmax else lmax
@@ -58,23 +60,23 @@ class KarmmaSampler:
         self.tensorize()
     
     def tensorize(self):
-        self.g1_obs = torch.tensor(self.g1_obs)
-        self.g2_obs = torch.tensor(self.g2_obs)
-        self.sigma_obs = torch.tensor(self.sigma_obs)
-        self.mask = torch.tensor(self.mask)
-        self.y_cl = torch.tensor(self.y_cl)
+        self.g1_obs = torch.tensor(self.g1_obs, device=self.device)
+        self.g2_obs = torch.tensor(self.g2_obs, device=self.device)
+        self.sigma_obs = torch.tensor(self.sigma_obs, device=self.device)
+        self.mask = torch.tensor(self.mask, device=self.device)
+        self.y_cl = torch.tensor(self.y_cl, device=self.device)
 
     def compute_lognorm_cl(self, order=2):
-        self.mu_torch    = torch.tensor(self.mu[:,np.newaxis])
-        self.shift_torch = torch.tensor(self.shift[:,np.newaxis])
+        self.mu_torch    = torch.tensor(self.mu[:,np.newaxis], device=self.device)
+        self.shift_torch = torch.tensor(self.shift[:,np.newaxis], device=self.device)
         if self.kappa_std is not None:
-            self.kappa_std = torch.tensor(self.kappa_std).unsqueeze(1)
+            self.kappa_std = torch.tensor(self.kappa_std, device=self.device).unsqueeze(1)
         self.y_cl[:,:,:2]  = np.tile(1e-20 * np.eye(self.N_Z_BINS)[:,:,np.newaxis], (1,1,2))
 
     def get_xlm(self, xlm_real, xlm_imag):
         ell, emm = hp.Alm.getlm(self.gen_lmax)
-        _xlm_real = torch.zeros(self.N_Z_BINS, len(ell), dtype=self.dtype)
-        _xlm_imag = torch.zeros_like(_xlm_real)
+        _xlm_real = torch.zeros(self.N_Z_BINS, len(ell), dtype=self.dtype, device=self.device)
+        _xlm_imag = torch.zeros_like(_xlm_real, device=self.device)
         _xlm_real[:,ell > 1] = xlm_real
         _xlm_imag[:,(ell > 1) & (emm > 0)] = xlm_imag
         xlm = _xlm_real + 1j * _xlm_imag
@@ -98,10 +100,10 @@ class KarmmaSampler:
         L_arr = torch.swapaxes(L[:,:,ell[ell > -1]], 0,1)
     
 
-        ylm_real = self.matmul(L_arr, xlm_real) / torch.sqrt(torch.Tensor([2.]))
-        ylm_imag = self.matmul(L_arr, xlm_imag) / torch.sqrt(torch.Tensor([2.]))
+        ylm_real = self.matmul(L_arr, xlm_real) / self.sqrt_2 
+        ylm_imag = self.matmul(L_arr, xlm_imag) / self.sqrt_2
 
-        ylm_real[:,ell[emm==0]] *= torch.sqrt(torch.Tensor([2.]))
+        ylm_real[:,ell[emm==0]] *= self.sqrt_2
     
         return ylm_real + 1j * ylm_imag
     
@@ -114,15 +116,14 @@ class KarmmaSampler:
     def model(self, prior_only=True):
         ell, emm = hp.Alm.getlm(self.gen_lmax)
 
-        xlm_real = pyro.sample('xlm_real', dist.Normal(torch.zeros(self.N_Z_BINS, (ell > 1).sum(), dtype=self.dtype),
-                                                       torch.ones(self.N_Z_BINS, (ell > 1).sum(), dtype=self.dtype)))
-        xlm_imag = pyro.sample('xlm_imag', dist.Normal(torch.zeros(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=self.dtype),
-                                                       torch.ones(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=self.dtype)))
+        xlm_real = pyro.sample('xlm_real', dist.Normal(torch.zeros(self.N_Z_BINS, (ell > 1).sum(), dtype=self.dtype, device=self.device),
+                                                       torch.ones(self.N_Z_BINS, (ell > 1).sum(), dtype=self.dtype, device=self.device)))
+        xlm_imag = pyro.sample('xlm_imag', dist.Normal(torch.zeros(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=self.dtype, device=self.device),
+                                                       torch.ones(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=self.dtype, device=self.device)))
           
         xlm = self.get_xlm(xlm_real, xlm_imag)
-        y_cl = self.y_cl
         
-        ylm    = self.apply_cl(xlm, y_cl)
+        ylm    = self.apply_cl(xlm, self.y_cl)
         y_maps = Alm2MapTomoMP.apply(ylm, self.nside, self.gen_lmax) + self.mu_torch
         k_ln   = torch.exp(y_maps) - self.shift_torch
 
@@ -142,12 +143,12 @@ class KarmmaSampler:
         kernel = NUTS(self.model, target_accept_prob=0.65, step_size=step_size)
         if inv_mass_matrix is not None:
             kernel.mass_matrix_adapter.inverse_mass_matrix = inv_mass_matrix
-        x_real_init = 0.3 * torch.randn((self.N_Z_BINS, (self.ell > 1).sum()), dtype=self.dtype)
-        x_imag_init = 0.3 * torch.randn((self.N_Z_BINS, ((self.ell > 1) & (self.emm > 0)).sum()), dtype=self.dtype)
+        x_real_init = 0.3 * torch.randn((self.N_Z_BINS, (self.ell > 1).sum()), dtype=self.dtype, device=self.device)
+        x_imag_init = 0.3 * torch.randn((self.N_Z_BINS, ((self.ell > 1) & (self.emm > 0)).sum()), dtype=self.dtype, device=self.device)
         if x_init is not None:
             xlm_real_init, xlm_imag_init = x_init
-            xlm_real_init = torch.tensor(xlm_real_init, dtype=self.dtype)
-            xlm_imag_init = torch.tensor(xlm_imag_init, dtype=self.dtype)
+            xlm_real_init = torch.tensor(xlm_real_init, dtype=self.dtype, device=self.device)
+            xlm_imag_init = torch.tensor(xlm_imag_init, dtype=self.dtype, device=self.device)
 
         mcmc = MCMC(kernel, num_samples=num_samples, warmup_steps=num_burn,
                     initial_params={"xlm_real": x_real_init,

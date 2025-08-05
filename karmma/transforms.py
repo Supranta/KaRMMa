@@ -3,6 +3,7 @@ import torch
 import healpy as hp
 import numpy as np
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class Alm2Map(torch.autograd.Function):
     @staticmethod
@@ -11,7 +12,7 @@ class Alm2Map(torch.autograd.Function):
         ctx.nside = nside
         ctx.lmax = lmax
 
-        m = torch.tensor(hp.alm2map(alms.numpy(), nside, lmax=lmax))
+        m = torch.tensor(hp.alm2map(alms.numpy(), nside, lmax=lmax, device=device))
 
         return m
 
@@ -21,7 +22,7 @@ class Alm2Map(torch.autograd.Function):
         lmax = ctx.lmax
 
         _, emm = hp.Alm.getlm(lmax)
-        a = torch.ones(len(emm), dtype=torch.double)
+        a = torch.ones(len(emm), dtype=torch.double, device=device)
         a[emm > 0] = 2
 
         grad_out_alm = Map2Alm.apply(grad_output, lmax)
@@ -37,7 +38,7 @@ class Map2Alm(torch.autograd.Function):
         ctx.nside = hp.npix2nside(len(m))
         ctx.lmax = lmax
 
-        alm = torch.tensor(hp.map2alm(m.numpy(), lmax=lmax, use_pixel_weights=True))
+        alm = torch.tensor(hp.map2alm(m.numpy(), lmax=lmax, use_pixel_weights=True), device=device)
 
         return alm
 
@@ -47,7 +48,7 @@ class Map2Alm(torch.autograd.Function):
         lmax = ctx.lmax
 
         _, emm = hp.Alm.getlm(lmax)
-        a = torch.ones(len(emm), dtype=torch.double)
+        a = torch.ones(len(emm), dtype=torch.double, device=device)
         a[emm > 0] = 0.5
 
         grad_out_m = Alm2Map.apply(a * grad_output, nside, lmax)
@@ -64,8 +65,8 @@ class Alm2MapSpin(torch.autograd.Function):
 
         inputs = [np.zeros_like(elm.numpy()), elm.numpy(), blm.numpy()]
         _, q, u = hp.alm2map(inputs, nside, lmax=lmax)
-        q = torch.tensor(q)
-        u = torch.tensor(u)
+        q = torch.tensor(q, device=device)
+        u = torch.tensor(u, device=device)
 
         return q, u
 
@@ -75,7 +76,7 @@ class Alm2MapSpin(torch.autograd.Function):
         lmax = ctx.lmax
 
         _, emm = hp.Alm.getlm(lmax)
-        a = torch.ones(len(emm), dtype=torch.double)
+        a = torch.ones(len(emm), dtype=torch.double, device=device)
         a[emm > 0] = 2
 
         elm_grad, blm_grad = Map2AlmSpin.apply(q_grad, u_grad, lmax)
@@ -93,8 +94,8 @@ class Map2AlmSpin(torch.autograd.Function):
 
         inputs = [np.zeros_like(q.numpy()), q.numpy(), u.numpy()]
         _, elm, blm = hp.map2alm(inputs, lmax=lmax, use_pixel_weights=True)
-        elm = torch.tensor(elm)
-        blm = torch.tensor(blm)
+        elm = torch.tensor(elm, device=device)
+        blm = torch.tensor(blm, device=device)
 
         return elm, blm
 
@@ -104,7 +105,7 @@ class Map2AlmSpin(torch.autograd.Function):
         lmax = ctx.lmax
 
         _, emm = hp.Alm.getlm(lmax)
-        a = torch.ones(len(emm), dtype=torch.double)
+        a = torch.ones(len(emm), dtype=torch.double, device=device)
         a[emm > 0] = 0.5
 
         q_grad, u_grad = Alm2MapSpin.apply(a * elm_grad, a * blm_grad, nside, lmax)
@@ -120,7 +121,7 @@ class UDGrade(torch.autograd.Function):
         ctx.in_nside = hp.npix2nside(len(m))
         ctx.out_nside = out_nside
 
-        ud_m = torch.tensor(hp.ud_grade(m.numpy(), out_nside))
+        ud_m = torch.tensor(hp.ud_grade(m.numpy(), out_nside), device=device)
 
         return ud_m
 
@@ -143,7 +144,7 @@ def shear2conv(g1, g2, lmax=None):
 
     lmax = hp.Alm.getlmax(len(gelm))
     l, m = hp.Alm.getlm(lmax)
-    l = torch.tensor(l, dtype=torch.double)
+    l = torch.tensor(l, dtype=torch.double, device=device)
 
     good_ls = l > 1
     fac = torch.zeros_like(l)
@@ -166,7 +167,7 @@ def conv2shear(k, lmax=None, pixwin=None):
 
     lmax = hp.Alm.getlmax(len(kelm))
     l, m = hp.Alm.getlm(lmax)
-    l = torch.tensor(l, dtype=torch.double)
+    l = torch.tensor(l, dtype=torch.double, device=device)
 
     good_ls = l > 0
     fac = torch.zeros_like(l)

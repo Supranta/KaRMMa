@@ -99,8 +99,8 @@ def get_LN_shear(y_maps):
         k = k_nf
         k_list.append(k)
         g1, g2 = trf.conv2shear(torch.tensor(k), lmax,tmp.pixwin_ell_filter)
-        g1 = g1.numpy() * mask
-        g2 = g2.numpy() * mask
+        g1 = g1.numpy() 
+        g2 = g2.numpy() 
         g1_list.append(g1)
         g2_list.append(g2)    
 
@@ -113,8 +113,8 @@ def get_g_obs(g1,g2,sigma):
     g1_obs = np.zeros_like(g1)
     g2_obs = np.zeros_like(g1)
     for i in range(N_Z_BINS):
-        g1_obs[i] = np.random.normal(g1[i],sigma[i]) * mask
-        g2_obs[i] = np.random.normal(g2[i],sigma[i]) * mask
+        g1_obs[i] = np.random.normal(g1[i],sigma[i]) 
+        g2_obs[i] = np.random.normal(g2[i],sigma[i]) 
     return torch.tensor(g1_obs), torch.tensor(g2_obs)
 
 

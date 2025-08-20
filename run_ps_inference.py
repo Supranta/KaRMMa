@@ -33,7 +33,6 @@ tmp = np.zeros((nbins,hp.nside2npix(nside)))
 cl_file = './data/des_y3/cl_pyccl_training_data.pt'
 tmp = KarmmaSampler(tmp, tmp, tmp, tmp, lmax, gen_lmax,pixwin=pixwin,shift_file=config.shift_file,mean_g_file=config.mean_g_file,ycl_file=cl_file,thetafid=config.thetafid)
 print("Done initializing sampler....")
-
 ell, emm = hp.Alm.getlm(gen_lmax)
 cl       = tmp.cl_emu.predict(thetafid).reshape((1, N_Z_BINS, N_Z_BINS, -1))[0].numpy()
 mean_g   = tmp.mean_g_emu.predict(thetafid)[0].numpy()
@@ -67,7 +66,7 @@ print(ell_bins)
 
 cl_fid = get_cl(config.thetafid, ell_bins)
 
-def get_cl_cov(N_mocks=650):
+def get_cl_cov(N_mocks=999):
     cl_list = []
     for i in range(N_mocks):
         cl = np.load(config.io_dir + '/cl_%d.npy'%(i))

@@ -2,24 +2,22 @@ analysis:
     nbins: 4
     nside: 256 
     sigma_e: 0.261
-    pixwin: data/healpix/hybrid_pixwin_256.npy
+    pixwin: /path/to/files/pixwin.npy
 
 io:     
-    datafile: data/des_y3/desy3_shear_data.h5
-    io_dir: output/des_y3_cosmo
-    maskfile: data/des_y3/mask_desy3.fits
-    x_init_file: output/des_y3/kappa_MAP.h5
+    datafile: /path/to/files/desy3_shear_data.h5
+    io_dir: /path/to/files/io_dir/
+    maskfile: /path/to/files/mask_desy3.fits
+    x_init_file: /path/to/files/kappa_MAP.h5
+    store_fields: true
     
 mcmc:
     n_burn_in: 200
     n_samples: 200
     step_size: 0.2
-    MP: False
     
 cosmology:
-    shift_file: data/des_y3/shift_training_data.pt
-    mean_g_file: data/des_y3/mean_g_training_data.pt
-    y_cl_file: data/des_y3/ycl_training_data.pt
+    td_file: /path/to/files/training_data.h5
 
 mocks:
     #(Omega_m, sigma8, w, omegab, h, ns)

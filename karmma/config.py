@@ -1,6 +1,5 @@
 import numpy as np
 import h5py as h5
-import pickle
 import yaml
 import os
 
@@ -35,11 +34,13 @@ class KarmmaConfig:
         return data_dict
     
     def set_config_cosmo(self, config_args_cosmo):
-        self.shift_file  = config_args_cosmo['shift_file']
-        self.mean_g_file = config_args_cosmo['mean_g_file']
-        self.y_cl_file   = config_args_cosmo['y_cl_file']
+        self.td_file = config_args_cosmo['td_file']
+        self.GN_mode = self.get_mode(self.td_file)
+        print(f'Using G{self.GN_mode} prior on kappa')
+
     def set_config_io(self, config_args_io):
-        self.datafile = config_args_io['datafile']
+        self.store_fields = config_args_io['store_fields'] 
+        self.datafile     = config_args_io['datafile']
         try:
             self.data     = self.read_data(self.datafile)
         except:
@@ -63,6 +64,22 @@ class KarmmaConfig:
             print("Initialization file not found. Initializing with prior.")
             self.x_init = None
 
+    def get_mode(self,filepath):
+        with h5.File(filepath, 'r') as hf:
+            keys = set(hf.keys())
+
+        modes = {
+            1: {'cosmo', 'cl_NG'},
+            2: {'cosmo', 'alpha', 'beta', 'cl_G'},
+            3: {'cosmo', 'a', 'b', 'c', 'cl_G'},
+        }
+
+        for mode, expected_keys in modes.items():
+            if keys == expected_keys:
+                return mode
+
+        raise ValueError(f"Unrecognized file format with keys: {keys}")
+    
     def read_data(self, datafile):
         with h5.File(datafile, 'r') as f:
             N      = f['N'][:]
@@ -78,7 +95,6 @@ class KarmmaConfig:
     def set_config_mcmc(self, config_args_mcmc):
         self.n_burn_in = config_args_mcmc['n_burn_in']
         self.n_samples = config_args_mcmc['n_samples']
-        self.MP        = config_args_mcmc['MP']
         try:
             self.step_size = float(config_args_mcmc['step_size'])
         except:

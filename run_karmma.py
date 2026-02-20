@@ -3,7 +3,7 @@ import pickle
 import numpy as np
 import h5py as h5
 import healpy as hp
-from karmma import KarmmaSampler, KarmmaConfig
+from karmma import KarmmaSampler, KarmmaConfig, MODE_QUANTITIES
 from karmma.utils import *
 import karmma.transforms as trf
 import torch
@@ -33,22 +33,24 @@ sigma = sigma_e / np.sqrt(N + 1e-25)
 
 print("Initializing sampler....")
 sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, lmax, gen_lmax, pixwin=pixwin,
-                        shift_file=config.shift_file,mean_g_file=config.mean_g_file,ycl_file=config.y_cl_file,thetafid=config.thetafid)
+                        td_file=config.td_file,mode=config.GN_mode,thetafid=config.thetafid)
      
 print("Done initializing sampler....")
 
-samples, mcmc_kernel = sampler.sample(config.n_burn_in, config.n_samples, config.step_size, x_init=config.x_init,MP=config.MP)
+samples, mcmc_kernel = sampler.sample(config.n_burn_in, config.n_samples, config.step_size, x_init=config.x_init)
 
 def x2kappa(xlm_real, xlm_imag, theta):
     kappa_list = []
     xlm    = sampler.get_xlm(xlm_real, xlm_imag)
-    y_cl   = sampler.cl_emu.predict(theta).reshape((1, N_Z_BINS, N_Z_BINS, -1))[0]
-    mean_g = sampler.mean_g_emu.predict(theta)[0]
-    shift  = sampler.shift_emu.predict(theta)[0]
+    cl_key = 'cl_NG' if config.GN_mode == 1 else 'cl_G'
+    y_cl   = sampler.emulators[cl_key].predict(theta).reshape((1, N_Z_BINS, N_Z_BINS, -1))[0]
     ylm    = sampler.apply_cl(xlm, y_cl)
-    
+    params = {qty: sampler.emulators[qty].predict(theta)
+              for qty in MODE_QUANTITIES[config.GN_mode] if qty != cl_key}
+
     for i in range(N_Z_BINS):
-        k = torch.exp(mean_g[i] + trf.Alm2Map.apply(ylm[i], nside, gen_lmax)) - shift[i]
+        x = trf.Alm2Map.apply(ylm[i], nside, gen_lmax)
+        k = sampler.compute_k(x, i, params)
         k = k.detach().numpy()
         k_filtered = get_filtered_map(k, sampler.pixwin_ell_filter.numpy(), nside)
         kappa_list.append(k_filtered)
@@ -56,13 +58,14 @@ def x2kappa(xlm_real, xlm_imag, theta):
 
 print("Saving samples...")
 for i, (theta, xlm_real, xlm_imag) in enumerate(zip(samples['theta'], samples['xlm_real'], samples['xlm_imag'])):
-    kappa = x2kappa(xlm_real, xlm_imag, theta)
     with h5.File(config.io_dir + '/sample_%d.h5'%(i), 'w') as f:
         f['i']        = i
         f['theta']    = theta
-        f['kappa']    = kappa
         f['xlm_real'] = xlm_real
         f['xlm_imag'] = xlm_imag
+        if config.store_fields:
+            kappa = x2kappa(xlm_real, xlm_imag, theta)
+            f['kappa'] = kappa
 
 print("Saving MCMC meta-data and mass matrix...")
 with h5.File(config.io_dir + '/mcmc_metadata.h5', 'w') as f:

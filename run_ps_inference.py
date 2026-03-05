@@ -1,44 +1,46 @@
 import sys
 import numpy as np
-import h5py as h5
-from karmma import KarmmaSampler, KarmmaConfig
+import emcee
+from karmma import KarmmaSampler, KarmmaConfig, MODE_QUANTITIES
 from karmma.utils import *
-import karmma.transforms as trf
-from scipy.stats import norm, poisson
 import torch
-from tqdm import trange
 
 torch.set_num_threads(8)
 
 configfile     = sys.argv[1]
 config         = KarmmaConfig(configfile)
 
-nside    = config.analysis['nside']
-nbins    = config.analysis['nbins']
-gen_lmax = 3 * nside - 1
-lmax     = 2 * nside 
-N_Z_BINS = config.analysis['nbins']
-pixwin   = config.analysis['pixwin']
-mask         = hp.fitsfunc.read_map(config.maskfile)
+N_ell_bins   = 13
+
+nside        = config.analysis['nside']
+nbins        = config.analysis['nbins']
+gen_lmax     = 3 * nside - 1
+lmax         = 2 * nside 
+ell_bins     = np.logspace(np.log10(6), np.log10(lmax), N_ell_bins).astype(int)
+N_Z_BINS     = config.analysis['nbins']
+pixwin       = config.analysis['pixwin']
+mask         = config.data['mask']
 boolean_mask = mask.astype(bool)
 #=== For shape noise ================
 sigma_e  = config.analysis['sigma_e']
-N        = np.load(config.N_map)
+N        = config.data['N']
 sigma    = sigma_e / np.sqrt(N + 1e-25)
 #=====================================
 thetafid = torch.tensor(config.thetafid,dtype=torch.double)
 #============================================================
 print("Initializing sampler....")
+# Hard-coded for the time being
+mode = 1
+cl_path = '/spiff/ivanespinoza/KaRMMa_data/training_data/desy3/Gaussian_prior/training_data.h5'
+#============================================================
 tmp = np.zeros((nbins,hp.nside2npix(nside)))
-cl_file = './data/des_y3/cl_pyccl_training_data.pt'
-tmp = KarmmaSampler(tmp, tmp, tmp, tmp, lmax, gen_lmax,pixwin=pixwin,shift_file=config.shift_file,mean_g_file=config.mean_g_file,ycl_file=cl_file,thetafid=config.thetafid)
+tmp = KarmmaSampler(tmp, tmp, tmp, tmp, lmax, gen_lmax, pixwin=pixwin,
+                        td_file=cl_path,mode=mode,thetafid=config.thetafid,prior_specs=config.prior_specs)
 print("Done initializing sampler....")
 ell, emm = hp.Alm.getlm(gen_lmax)
-cl       = tmp.cl_emu.predict(thetafid).reshape((1, N_Z_BINS, N_Z_BINS, -1))[0].numpy()
-mean_g   = tmp.mean_g_emu.predict(thetafid)[0].numpy()
-shift    = tmp.shift_emu.predict(thetafid)[0].numpy()
-
-ls = np.arange(lmax + 1)
+cl_key   = 'cl_NG' if tmp.mode == 1 else 'cl_G'
+cl       = tmp.emulators[cl_key].predict(thetafid).reshape((1, N_Z_BINS, N_Z_BINS, -1))[0].numpy()
+ls       = np.arange(lmax + 1)
 
 def get_binned_cl(cl, ell_bins):
     w = (1. + 2 * ls)
@@ -51,7 +53,7 @@ def get_binned_cl(cl, ell_bins):
 
 def get_cl(theta, ell_bins):
     theta_tensor = torch.tensor(theta)
-    cl_pred = tmp.cl_emu.predict(theta_tensor).reshape((1, N_Z_BINS, N_Z_BINS, -1))[0].numpy()
+    cl_pred = tmp.emulators[cl_key].predict(theta_tensor).reshape((1, N_Z_BINS, N_Z_BINS, -1))[0].numpy()
     cl_list = []
     for i in range(N_Z_BINS):
         for j in range(i+1):
@@ -59,10 +61,6 @@ def get_cl(theta, ell_bins):
             cl_binned = get_binned_cl(cl_ij, ell_bins)
             cl_list.append(cl_binned)
     return np.array(cl_list).flatten()
-
-N_ell_bins = 13
-ell_bins   = np.logspace(np.log10(6), np.log10(lmax), N_ell_bins).astype(int)
-print(ell_bins)
 
 cl_fid = get_cl(config.thetafid, ell_bins)
 
@@ -99,15 +97,15 @@ def log_prob(theta):
 
 loglkl_fid = log_lkl(config.thetafid)
 
-ndim = len(config.thetafid)  # Number of parameters
+ndim     = len(config.thetafid)  # Number of parameters
 nwalkers = 20  # Should be at least 2*ndim, commonly 2-4 times ndim
-nsteps = 1000  # Number of steps to run
+nsteps   = 1000  # Number of steps to run
 
 # Initialize walkers in a small ball around theta_fid
 pos_std = 0.01 * (tmp.emu_upper_bound - tmp.emu_lower_bound)  # 1% of parameter range
 pos     = config.thetafid + pos_std * np.random.randn(nwalkers, ndim)
 
-import emcee
+
 # Create the sampler
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob)
 

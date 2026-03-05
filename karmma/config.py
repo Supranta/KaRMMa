@@ -37,7 +37,9 @@ class KarmmaConfig:
         self.td_file = config_args_cosmo['td_file']
         self.GN_mode = self.get_mode(self.td_file)
         print(f'Using G{self.GN_mode} prior on kappa')
-
+        raw_priors = config_args_cosmo.get('priors', None)
+        self.prior_specs = raw_priors
+        
     def set_config_io(self, config_args_io):
         self.store_fields = config_args_io['store_fields'] 
         self.datafile     = config_args_io['datafile']

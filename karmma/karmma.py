@@ -26,7 +26,7 @@ EMULATOR_CLASS = {
 }
 
 class KarmmaSampler:
-    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, lmax=None, gen_lmax=None, pixwin=None, td_file=None,mode=None,thetafid=None):
+    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, lmax=None, gen_lmax=None, pixwin=None, td_file=None,mode=None,thetafid=None,prior_specs=None):
         self.g1_obs        = g1_obs       
         self.g2_obs        = g2_obs
         self.N_Z_BINS      = g1_obs.shape[0]
@@ -42,6 +42,7 @@ class KarmmaSampler:
         self.train_emulator(td_file, mode)
         self.emu_upper_bound = self.emulators['cl_NG' if mode == 1 else 'cl_G'].emu[0].cosmology_max
         self.emu_lower_bound = self.emulators['cl_NG' if mode == 1 else 'cl_G'].emu[0].cosmology_min
+        self.prior_specs     = self.build_priors(prior_specs)
 
         if pixwin is not None:
             print("Using healpix pixel window function.")
@@ -72,7 +73,43 @@ class KarmmaSampler:
             emu.fit_params()
             self.emulators[qty] = emu
         del data, cosmo
+
+    def build_priors(self, prior_specs):
+        N_params = len(self.emu_lower_bound)
+        if prior_specs is None:
+            return [{'type': 'uniform'} for _ in range(N_params)]
         
+        assert len(prior_specs) == N_params, \
+            f"Expected {N_params} prior specs, got {len(prior_specs)}"
+        
+        resolved = []
+        for i, spec in enumerate(prior_specs):
+            spec = dict(spec)
+            if spec['type'] == 'uniform':
+                spec.setdefault('low',  float(self.emu_lower_bound[i]))
+                spec.setdefault('high', float(self.emu_upper_bound[i]))
+            elif spec['type'] not in ('gaussian', 'deterministic'):
+                raise ValueError(f"Unknown prior type: {spec['type']}")
+            resolved.append(spec)
+        print(resolved)
+        return resolved
+
+    def sample_theta(self):
+        parts = []
+        for i, spec in enumerate(self.prior_specs):
+            ptype = spec['type']
+            if ptype == 'deterministic':
+                parts.append(torch.tensor([spec['value']], dtype=torch.double))
+            elif ptype == 'uniform':
+                low  = torch.tensor(spec['low'],  dtype=torch.double)
+                high = torch.tensor(spec['high'], dtype=torch.double)
+                parts.append(pyro.sample(f'theta_{i}', dist.Uniform(low, high)).reshape(1))
+            elif ptype == 'gaussian':
+                mu    = torch.tensor(spec['mu'],    dtype=torch.double)
+                sigma = torch.tensor(spec['sigma'], dtype=torch.double)
+                parts.append(pyro.sample(f'theta_{i}', dist.Normal(mu, sigma)).reshape(1))
+        return torch.stack(parts).squeeze()
+
     def tensorize(self):
         self.g1_obs    = torch.tensor(self.g1_obs)
         self.g2_obs    = torch.tensor(self.g2_obs)
@@ -124,9 +161,7 @@ class KarmmaSampler:
         
     def model(self, prior_only=False):
         ell, emm = hp.Alm.getlm(self.gen_lmax)
-
-        theta    = pyro.sample('theta', dist.Uniform(torch.tensor(self.emu_lower_bound, dtype=torch.double),
-                                                    torch.tensor(self.emu_upper_bound, dtype=torch.double)))
+        theta    = self.sample_theta()
         xlm_real = pyro.sample('xlm_real', dist.Normal(torch.zeros(self.N_Z_BINS, (ell > 1).sum(), dtype=torch.double),
                                                     torch.ones(self.N_Z_BINS, (ell > 1).sum(), dtype=torch.double)))
         xlm_imag = pyro.sample('xlm_imag', dist.Normal(torch.zeros(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=torch.double),
@@ -152,19 +187,27 @@ class KarmmaSampler:
 
         x_real_init = 0.3 * torch.randn((self.N_Z_BINS, (self.ell > 1).sum()), dtype=torch.double)
         x_imag_init = 0.3 * torch.randn((self.N_Z_BINS, ((self.ell > 1) & (self.emm > 0)).sum()), dtype=torch.double)
-        
+
         if x_init is not None:
-            xlm_real_init, xlm_imag_init = x_init
-            xlm_real_init = torch.tensor(xlm_real_init, dtype=torch.double)
-            xlm_imag_init = torch.tensor(xlm_imag_init, dtype=torch.double)
+            x_real_init = torch.tensor(x_init[0], dtype=torch.double)
+            x_imag_init = torch.tensor(x_init[1], dtype=torch.double)
+
+        # build theta initial params, skipping deterministic entries
+        theta_init = {}
+        for i, spec in enumerate(self.prior_specs):
+            if spec['type'] != 'deterministic':
+                theta_init[f'theta_{i}'] = self.theta_fid[i].unsqueeze(0)
+
+        initial_params = {
+            **theta_init,
+            'xlm_real': x_real_init,
+            'xlm_imag': x_imag_init,
+        }
 
         mcmc = MCMC(kernel, num_samples=num_samples, warmup_steps=num_burn,
-                    initial_params={"theta": self.theta_fid,
-                                    "xlm_real": x_real_init,
-                                    "xlm_imag": x_imag_init})
+                    initial_params=initial_params)
         mcmc.run()
         self.samps = mcmc.get_samples()
-
         return self.samps, mcmc.kernel
 
     def save_samples(self, fname):

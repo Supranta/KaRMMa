@@ -18,9 +18,15 @@ mcmc:
     
 cosmology:
     td_file: /path/to/files/training_data.h5
-
+    priors:
+    - {type: uniform}                           # Om, uses emulator bounds automatically
+    - {type: gaussian, mu: 0.82, sigma: 0.04}   # S8
+    - {type: uniform, low: -2.0, high: -0.33}   # w manual override of bounds
+    - {type: deterministic, value: 0.02237}     # ob
+    - {type: gaussian, mu: 0.70, sigma: 0.05}   # h
+    - {type: uniform}                           # ns
 mocks:
-    #(Omega_m, sigma8, w, omegab, h, ns)
+    #(Omega_m, S8, w, omegab, h, ns)
     N_theta: 6
     theta_fid: 0.279798753,0.87134582355,-1.0721294206,0.02237,0.7022,0.9649
     N_map: data/des_y3/N.npy

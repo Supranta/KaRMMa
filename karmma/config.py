@@ -11,7 +11,8 @@ class KarmmaConfig:
         self.set_config_io(config_args['io'])
         self.set_config_mcmc(config_args['mcmc'])
         self.set_config_cosmo(config_args['cosmology'])
-        self.set_config_mocks(config_args['mocks'])  
+        self.set_config_mocks(config_args['mocks'])
+        self.set_config_multiplicative_bias(config_args.get('multiplicative_bias', None))
 
     def set_config_analysis(self, config_args_analysis):
         print("Setting config data....")
@@ -37,9 +38,30 @@ class KarmmaConfig:
         self.td_file = config_args_cosmo['td_file']
         self.GN_mode = self.get_mode(self.td_file)
         print(f'Using G{self.GN_mode} prior on kappa')
-        raw_priors = config_args_cosmo.get('priors', None)
-        self.prior_specs = raw_priors
         
+        # read parameter names from the training data file
+        with h5.File(self.td_file, 'r') as hf:
+            self.cosmo_names = [n.decode() for n in hf['cosmo_names'][:]]
+        
+        raw_priors = config_args_cosmo.get('priors', None)
+        if raw_priors is not None:
+            # reorder priors to match the order in the training data
+            prior_dict = {p['name']: p for p in raw_priors}
+            self.prior_specs = [prior_dict[name] for name in self.cosmo_names]
+        else:
+            self.prior_specs = None
+
+    def set_config_multiplicative_bias(self, config_args_mb):
+        nbins = self.analysis['nbins']
+        if config_args_mb is None:
+            # Default is no multiplicative bias
+            self.mb_specs = [{'bin': i, 'type': 'deterministic', 'value': 0.0} 
+                            for i in range(nbins)]
+        else:
+            assert len(config_args_mb) == nbins, \
+                f"Expected {nbins} multiplicative bias specs, got {len(config_args_mb)}"
+            self.mb_specs = [dict(spec) for spec in config_args_mb]   
+            
     def set_config_io(self, config_args_io):
         self.store_fields = config_args_io['store_fields'] 
         self.datafile     = config_args_io['datafile']
@@ -66,9 +88,9 @@ class KarmmaConfig:
             print("Initialization file not found. Initializing with prior.")
             self.x_init = None
 
-    def get_mode(self,filepath):
+    def get_mode(self, filepath):
         with h5.File(filepath, 'r') as hf:
-            keys = set(hf.keys())
+            keys = set(hf.keys()) - {'cosmo_names'}
 
         modes = {
             1: {'cosmo', 'cl_NG'},
@@ -102,8 +124,9 @@ class KarmmaConfig:
         except:
             self.step_size = 0.05
 
-    def set_config_mocks(self,config_args_mocks):
-        self.N_theta  = config_args_mocks['N_theta']
-        split_theta   = config_args_mocks['theta_fid'].split(',')
-        self.thetafid = np.array([float(split_theta[i]) for i in range(self.N_theta)])
-        self.N_map    = config_args_mocks['N_map']
+    def set_config_mocks(self, config_args_mocks):
+        self.N_theta  = len(self.cosmo_names)
+        theta_fid_dict = config_args_mocks['theta_fid']
+        self.thetafid  = np.array([theta_fid_dict[name] for name in self.cosmo_names])
+        self.mb_init   = np.array(config_args_mocks.get('mb_init', [0.0] * self.analysis['nbins']))
+        self.N_map     = config_args_mocks['N_map']

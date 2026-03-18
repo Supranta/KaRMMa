@@ -33,7 +33,8 @@ sigma = sigma_e / np.sqrt(N + 1e-25)
 
 print("Initializing sampler....")
 sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, lmax, gen_lmax, pixwin=pixwin,
-                        td_file=config.td_file,mode=config.GN_mode,thetafid=config.thetafid,prior_specs=config.prior_specs)
+                        td_file=config.td_file, mode=config.GN_mode, thetafid=config.thetafid, 
+                        prior_specs=config.prior_specs, mb_specs=config.mb_specs,mb_init=config.mb_init)
      
 print("Done initializing sampler....")
 
@@ -66,21 +67,41 @@ def x2kappa(xlm_real, xlm_imag, theta_samples_i):
 
 print("Saving samples...")
 for i in range(len(samples['xlm_real'])):
-    theta_i = {k: samples[k][i] for k in samples if k.startswith('theta_')}
+    theta_i  = {k: samples[k][i] for k in samples if k.startswith('theta_')}
     xlm_real = samples['xlm_real'][i]
     xlm_imag = samples['xlm_imag'][i]
     
     with h5.File(config.io_dir + '/sample_%d.h5' % i, 'w') as f:
-        f['i']        = i
-        # We reconstruct and store theta as a flat array (as in prev version)
+        f['i'] = i
+        # cosmological parameters
         sorted_keys = sorted(theta_i.keys(), key=lambda k: int(k.split('_')[1]))
         theta_flat  = torch.stack([theta_i[k] for k in sorted_keys]).detach().numpy()
-        f['theta'] = theta_flat
+        saved_names = [sampler.prior_specs[int(k.split('_')[1])]['name'] for k in sorted_keys]
+        f['theta']       = theta_flat
+        f['theta_names'] = np.array(saved_names, dtype='S')
+        # deterministic parameters
+        det = {spec['name']: spec['value']
+               for spec in sampler.prior_specs
+               if spec['type'] == 'deterministic'}
+        if det:
+            f['deterministic_names']  = np.array(list(det.keys()), dtype='S')
+            f['deterministic_values'] = np.array(list(det.values()))
+        # multiplicative bias
+        mb_i = {k: samples[k][i] for k in samples if k.startswith('m_')}
+        if mb_i:
+            sorted_mb_keys = sorted(mb_i.keys(), key=lambda k: int(k.split('_')[1]))
+            mb_flat = torch.stack([mb_i[k] for k in sorted_mb_keys]).detach().numpy()
+            f['multiplicative_bias'] = mb_flat
+        mb_det = [spec['value'] for spec in sampler.mb_specs if spec['type'] == 'deterministic']
+        if mb_det:
+            f['multiplicative_bias_deterministic'] = np.array(mb_det)
+        # fields
         if config.store_fields:
             kappa = x2kappa(xlm_real, xlm_imag, theta_i)
-            f['kappa'] = kappa
+            f['kappa']    = kappa
             f['xlm_real'] = xlm_real
             f['xlm_imag'] = xlm_imag
+
 print("Saving MCMC meta-data and mass matrix...")
 with h5.File(config.io_dir + '/mcmc_metadata.h5', 'w') as f:
     f['step_size'] = mcmc_kernel.step_size

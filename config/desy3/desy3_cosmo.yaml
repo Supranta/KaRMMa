@@ -2,15 +2,15 @@ analysis:
     nbins: 4
     nside: 256 
     sigma_e: 0.261
-    pixwin: /path/to/files/pixwin.npy
+    pixwin: /path/to/files/pixwin_Nside_256.npy
 
 io:     
-    datafile: /path/to/files/desy3_shear_data.h5
-    io_dir: /path/to/files/io_dir/
-    maskfile: /path/to/files/mask_desy3.fits
+    datafile: /path/to/files/data.h5
+    io_dir: /path/to/files/iodir/
+    maskfile: /path/to/files/mask.npy
     x_init_file: /path/to/files/kappa_MAP.h5
-    store_fields: true
-    
+    store_fields: False
+
 mcmc:
     n_burn_in: 200
     n_samples: 200
@@ -19,14 +19,26 @@ mcmc:
 cosmology:
     td_file: /path/to/files/training_data.h5
     priors:
-    - {type: uniform}                           # Om, uses emulator bounds automatically
-    - {type: gaussian, mu: 0.82, sigma: 0.04}   # S8
-    - {type: uniform, low: -2.0, high: -0.33}   # w manual override of bounds
-    - {type: deterministic, value: 0.02237}     # ob
-    - {type: gaussian, mu: 0.70, sigma: 0.05}   # h
-    - {type: uniform}                           # ns
+    - {name: Om, type: uniform, low: 0.20359217, high: 0.39844121}  
+    - {name: S8, type: uniform, low: 0.50505274, high: 0.99521593}   
+    - {name: w, type: uniform, low: -1.4411547, high: -0.50430316} 
+    - {name: ob, type: uniform, low: 0.02251592, high: 0.02255948} 
+    - {name: h, type: uniform, low: 0.68756442, high: 0.69468036}   
+    - {name: ns, type: uniform, low: 0.96144956, high: 0.9631907}   
+
+multiplicative_bias:
+    - {bin: 0, type: gaussian, mu: 0.0, sigma: 0.01}
+    - {bin: 1, type: gaussian, mu: 0.0, sigma: 0.01}
+    - {bin: 2, type: gaussian, mu: 0.0, sigma: 0.01}
+    - {bin: 3, type: gaussian, mu: 0.0, sigma: 0.01}
+
 mocks:
-    #(Omega_m, S8, w, omegab, h, ns)
-    N_theta: 6
-    theta_fid: 0.279798753,0.87134582355,-1.0721294206,0.02237,0.7022,0.9649
-    N_map: data/des_y3/N.npy
+    theta_fid:
+        Om: 0.2829817
+        S8: 0.71783496
+        w: -1.12658471
+        ob: 0.0225377
+        h: 0.69112239
+        ns: 0.96232013
+    mb_init: [0.0, 0.0, 0.0, 0.0]
+    N_map: /path/to/files/N.npy

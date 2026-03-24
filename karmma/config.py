@@ -60,7 +60,7 @@ class KarmmaConfig:
         else:
             assert len(config_args_mb) == nbins, \
                 f"Expected {nbins} multiplicative bias specs, got {len(config_args_mb)}"
-            self.mb_specs = [dict(spec) for spec in config_args_mb]   
+            self.mb_specs = sorted([dict(spec) for spec in config_args_mb], key=lambda x: x['bin'])
             
     def set_config_io(self, config_args_io):
         self.store_fields = config_args_io['store_fields'] 

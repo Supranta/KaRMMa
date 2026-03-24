@@ -44,11 +44,10 @@ def x2kappa(xlm_real, xlm_imag, theta_samples_i):
     theta_parts = []
     for i, spec in enumerate(sampler.prior_specs):
         if spec['type'] == 'deterministic':
-            theta_parts.append(torch.tensor(spec['value'], dtype=torch.double))
+            theta_parts.append(torch.tensor([spec['value']], dtype=torch.double))
         else:
-            theta_parts.append(theta_samples_i[f'theta_{i}'])
-    theta = torch.stack(theta_parts)
-
+            theta_parts.append(theta_samples_i[f'theta_{i}'].reshape(1))
+    theta = torch.stack(theta_parts).squeeze()
     kappa_list = []
     xlm    = sampler.get_xlm(xlm_real, xlm_imag)
     cl_key = 'cl_NG' if config.GN_mode == 1 else 'cl_G'
@@ -75,10 +74,11 @@ for i in range(len(samples['xlm_real'])):
         f['i'] = i
         # cosmological parameters
         sorted_keys = sorted(theta_i.keys(), key=lambda k: int(k.split('_')[1]))
-        theta_flat  = torch.stack([theta_i[k] for k in sorted_keys]).detach().numpy()
-        saved_names = [sampler.prior_specs[int(k.split('_')[1])]['name'] for k in sorted_keys]
-        f['theta']       = theta_flat
-        f['theta_names'] = np.array(saved_names, dtype='S')
+        if sorted_keys:
+            theta_flat  = torch.stack([theta_i[k] for k in sorted_keys]).detach().numpy()
+            saved_names = [sampler.prior_specs[int(k.split('_')[1])]['name'] for k in sorted_keys]
+            f['theta']       = theta_flat
+            f['theta_names'] = np.array(saved_names, dtype='S')
         # deterministic parameters
         det = {spec['name']: spec['value']
                for spec in sampler.prior_specs

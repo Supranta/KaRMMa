@@ -3,31 +3,17 @@ import healpy as hp
 import h5py as h5
 import torch
 import pyro
-from .QuadEmulator import ParamsEmu, ClEmu_Cholesky
+from .QuadEmulator import L_emu,params_emu
 import pyro.distributions as dist
 from pyro.infer import MCMC, NUTS
 from .transforms import Alm2Map, conv2shear
 import pickle
 
-MODE_QUANTITIES = {
-    1: ['cl_NG'],
-    2: ['alpha', 'beta', 'cl_G'],
-    3: ['a', 'b', 'c', 'cl_G'],
-}
-
-EMULATOR_CLASS = {
-    'cl_NG': ClEmu_Cholesky,
-    'cl_G':  ClEmu_Cholesky,
-    'alpha': ParamsEmu,
-    'beta':  ParamsEmu,
-    'a':     ParamsEmu,
-    'b':     ParamsEmu,
-    'c':     ParamsEmu,
-}
 
 class KarmmaSampler:
     def __init__(self, g1_obs, g2_obs, sigma_obs, mask, lmax=None, gen_lmax=None, pixwin=None, 
-                td_file=None, mode=None, thetafid=None, prior_specs=None, mb_specs=None, mb_init=None):
+                td_file=None, mode=None, thetafid=None, prior_specs=None, mb_specs=None, mb_init=None,
+                dz_specs=None, dz_init=None):
         self.g1_obs        = g1_obs       
         self.g2_obs        = g2_obs
         self.N_Z_BINS      = g1_obs.shape[0]
@@ -40,12 +26,14 @@ class KarmmaSampler:
         self.mode          = mode
         self.ell, self.emm = hp.Alm.getlm(self.gen_lmax)
 
-        self.train_emulator(td_file, mode)
-        self.emu_upper_bound = self.emulators['cl_NG' if mode == 1 else 'cl_G'].emu[0].cosmology_max
-        self.emu_lower_bound = self.emulators['cl_NG' if mode == 1 else 'cl_G'].emu[0].cosmology_min
+        self.train_emulator(td_file)
+        self.emu_upper_bound = self.l_emu.cosmology_max
+        self.emu_lower_bound = self.l_emu.cosmology_min
         self.prior_specs     = self.build_priors(prior_specs)
         self.mb_specs = mb_specs
         self.mb_init  = mb_init if mb_init is not None else np.zeros(self.N_Z_BINS)
+        self.dz_specs = dz_specs                                                   
+        self.dz_init  = dz_init if dz_init is not None else np.zeros(self.N_Z_BINS)
         if pixwin is not None:
             print("Using healpix pixel window function.")
             from scipy.interpolate import interp1d
@@ -64,17 +52,9 @@ class KarmmaSampler:
         self.theta_fid = torch.Tensor(thetafid).to(torch.double)
         self.tensorize()
     
-    def train_emulator(self, td_file, mode):
-        with h5.File(td_file, 'r') as hf:
-            cosmo = hf['cosmo'][:]
-            data  = {qty: hf[qty][:] for qty in MODE_QUANTITIES[mode]}
-
-        self.emulators = {}
-        for qty, values in data.items():
-            emu = EMULATOR_CLASS[qty]((cosmo, values))
-            emu.fit_params()
-            self.emulators[qty] = emu
-        del data, cosmo
+    def train_emulator(self, td_file):
+        self.l_emu  = L_emu(td_file)
+        self.p_emu = params_emu(td_file)
 
     def build_priors(self, prior_specs):
         N_params = len(self.emu_lower_bound)
@@ -128,6 +108,22 @@ class KarmmaSampler:
                 m.append(pyro.sample(f'm_{i}', dist.Normal(mu, sigma)))
         return torch.stack(m)
     
+    def sample_deltaz(self):
+        dz = []
+        for i, spec in enumerate(self.dz_specs):
+            ptype = spec['type']
+            if ptype == 'deterministic':
+                dz.append(torch.tensor(spec['value'], dtype=torch.double))
+            elif ptype == 'uniform':
+                low  = torch.tensor(spec['low'],  dtype=torch.double)
+                high = torch.tensor(spec['high'], dtype=torch.double)
+                dz.append(pyro.sample(f'dz_{i}', dist.Uniform(low, high)))
+            elif ptype == 'gaussian':
+                mu    = torch.tensor(spec['mu'],    dtype=torch.double)
+                sigma = torch.tensor(spec['sigma'], dtype=torch.double)
+                dz.append(pyro.sample(f'dz_{i}', dist.Normal(mu, sigma)))
+        return torch.stack(dz)
+    
     def domain_barrier(self, theta):
         low     = torch.tensor(self.emu_lower_bound, dtype=torch.double)
         high    = torch.tensor(self.emu_upper_bound, dtype=torch.double)
@@ -176,17 +172,21 @@ class KarmmaSampler:
         ylm_real[:,ell[emm==0]] *= torch.sqrt(torch.Tensor([2.]))
     
         return ylm_real + 1j * ylm_imag
-    
+
+# We do clapming to avoid planck errors
     def compute_k(self, x, i, params):
-        if self.mode == 1:
-            return x
-        elif self.mode == 2:
-            alpha, beta = params['alpha'][0][i], params['beta'][0][i]
-            return beta * torch.exp(alpha * x - 0.5 * alpha**2) - beta
+        if self.mode == 2:
+            alpha = params[i, 0]
+            beta  = params[i, 1]
+            return beta * torch.exp(torch.clamp(alpha * x - 0.5 * alpha**2,max=50)) - beta
         elif self.mode == 3:
-            a, b, c = params['a'][0][i], params['b'][0][i], params['c'][0][i]
-            return (torch.exp(a * x - 0.5 * a**2) + b*x + c) / (1 + c) - 1.   
-        
+            a = params[i, 0]
+            b = params[i, 1]
+            c = params[i, 2]
+            return (torch.exp(torch.clamp(a * x - 0.5 * a**2,max=30)) + b * x + c) / (1 + c) - 1.
+        else:
+            raise ValueError(f"Unsupported mode: {self.mode}")
+
     def model(self, prior_only=False):
         ell, emm = hp.Alm.getlm(self.gen_lmax)
         theta    = self.sample_theta()
@@ -194,18 +194,19 @@ class KarmmaSampler:
         theta_clamped = torch.clamp(theta,
                             min=torch.tensor(self.emu_lower_bound, dtype=torch.double),
                             max=torch.tensor(self.emu_upper_bound, dtype=torch.double))
+
         xlm_real = pyro.sample('xlm_real', dist.Normal(torch.zeros(self.N_Z_BINS, (ell > 1).sum(), dtype=torch.double),
                                                     torch.ones(self.N_Z_BINS, (ell > 1).sum(), dtype=torch.double)))
         xlm_imag = pyro.sample('xlm_imag', dist.Normal(torch.zeros(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=torch.double),
                                                     torch.ones(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=torch.double)))
         xlm  = self.get_xlm(xlm_real, xlm_imag)
-        cl_key = 'cl_NG' if self.mode == 1 else 'cl_G'
-        y_cl = self.emulators[cl_key].predict(theta_clamped).reshape((1, self.N_Z_BINS, self.N_Z_BINS, -1))[0]
-        ylm  = self.apply_cl(xlm, y_cl)
 
-        # predict all non-cl quantities for this mode
-        params = {qty: self.emulators[qty].predict(theta_clamped) 
-                for qty in MODE_QUANTITIES[self.mode] if qty != cl_key}
+        # Sample Δz nuisance, then query both emulators at (theta, Δz)
+        deltaz = self.sample_deltaz()
+        y_cl   = self.l_emu.predict(theta_clamped, deltaz)                  # shape (N_bins, N_bins, N_ell)
+        params = self.p_emu.predict(theta_clamped, deltaz)                  # shape (N_bins, N_fit)
+
+        ylm  = self.apply_cl(xlm, y_cl)
 
         m = self.sample_nuisance()
         for i in range(self.N_Z_BINS):
@@ -231,14 +232,22 @@ class KarmmaSampler:
             if spec['type'] != 'deterministic':
                 theta_init[f'theta_{i}'] = self.theta_fid[i].unsqueeze(0)
 
+        # multiplicative-bias inits, skipping deterministic entries
         mb_init = {}
         for i, spec in enumerate(self.mb_specs):
             if spec['type'] != 'deterministic':
                 mb_init[f'm_{i}'] = torch.tensor(float(self.mb_init[i]), dtype=torch.double)
 
+        # Δz inits, skipping deterministic entries                                  # <-- new
+        dz_init = {}
+        for i, spec in enumerate(self.dz_specs):
+            if spec['type'] != 'deterministic':
+                dz_init[f'dz_{i}'] = torch.tensor(float(self.dz_init[i]), dtype=torch.double)
+
         initial_params = {
             **theta_init,
             **mb_init,
+            **dz_init,                                                              # <-- new
             'xlm_real': x_real_init,
             'xlm_imag': x_imag_init,
         }

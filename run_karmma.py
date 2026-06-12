@@ -3,7 +3,7 @@ import pickle
 import numpy as np
 import h5py as h5
 import healpy as hp
-from karmma import KarmmaSampler, KarmmaConfig, MODE_QUANTITIES
+from karmma import KarmmaSampler, KarmmaConfig
 from karmma.utils import *
 import karmma.transforms as trf
 import torch
@@ -33,14 +33,19 @@ sigma = sigma_e / np.sqrt(N + 1e-25)
 
 print("Initializing sampler....")
 sampler = KarmmaSampler(g1_obs, g2_obs, sigma, mask, lmax, gen_lmax, pixwin=pixwin,
-                        td_file=config.td_file, mode=config.GN_mode, thetafid=config.thetafid, 
-                        prior_specs=config.prior_specs, mb_specs=config.mb_specs,mb_init=config.mb_init)
-     
+                        td_file=config.td_file, mode=config.GN_mode,
+                        thetafid=config.thetafid,
+                        prior_specs=config.prior_specs,
+                        mb_specs=config.mb_specs, mb_init=config.mb_init,
+                        dz_specs=config.dz_specs, dz_init=config.dz_init)   # <-- new
+
 print("Done initializing sampler....")
 
 samples, mcmc_kernel = sampler.sample(config.n_burn_in, config.n_samples, config.step_size, x_init=config.x_init)
 
-def x2kappa(xlm_real, xlm_imag, theta_samples_i):
+
+def x2kappa(xlm_real, xlm_imag, theta_samples_i, dz_samples_i):
+    # Reconstruct theta from sample (handling deterministic entries)
     theta_parts = []
     for i, spec in enumerate(sampler.prior_specs):
         if spec['type'] == 'deterministic':
@@ -48,14 +53,23 @@ def x2kappa(xlm_real, xlm_imag, theta_samples_i):
         else:
             theta_parts.append(theta_samples_i[f'theta_{i}'].reshape(1))
     theta = torch.stack(theta_parts).squeeze()
-    kappa_list = []
-    xlm    = sampler.get_xlm(xlm_real, xlm_imag)
-    cl_key = 'cl_NG' if config.GN_mode == 1 else 'cl_G'
-    y_cl   = sampler.emulators[cl_key].predict(theta).reshape((1, N_Z_BINS, N_Z_BINS, -1))[0]
-    ylm    = sampler.apply_cl(xlm, y_cl)
-    params = {qty: sampler.emulators[qty].predict(theta)
-              for qty in MODE_QUANTITIES[config.GN_mode] if qty != cl_key}
 
+    # Reconstruct Δz from sample (handling deterministic entries)
+    dz_parts = []
+    for i, spec in enumerate(sampler.dz_specs):
+        if spec['type'] == 'deterministic':
+            dz_parts.append(torch.tensor(spec['value'], dtype=torch.double))
+        else:
+            dz_parts.append(dz_samples_i[f'dz_{i}'])
+    deltaz = torch.stack(dz_parts)
+
+    # Run forward model at this (theta, Δz)
+    xlm    = sampler.get_xlm(xlm_real, xlm_imag)
+    y_cl   = sampler.l_emu.predict(theta, deltaz)
+    params = sampler.p_emu.predict(theta, deltaz)
+    ylm    = sampler.apply_cl(xlm, y_cl)
+
+    kappa_list = []
     for i in range(N_Z_BINS):
         x = trf.Alm2Map.apply(ylm[i], nside, gen_lmax)
         k = sampler.compute_k(x, i, params)
@@ -64,9 +78,11 @@ def x2kappa(xlm_real, xlm_imag, theta_samples_i):
         kappa_list.append(k_filtered)
     return np.array(kappa_list)
 
+
 print("Saving samples...")
 for i in range(len(samples['xlm_real'])):
     theta_i  = {k: samples[k][i] for k in samples if k.startswith('theta_')}
+    dz_i     = {k: samples[k][i] for k in samples if k.startswith('dz_')}   # <-- new
     xlm_real = samples['xlm_real'][i]
     xlm_imag = samples['xlm_imag'][i]
     
@@ -79,7 +95,7 @@ for i in range(len(samples['xlm_real'])):
             saved_names = [sampler.prior_specs[int(k.split('_')[1])]['name'] for k in sorted_keys]
             f['theta']       = theta_flat
             f['theta_names'] = np.array(saved_names, dtype='S')
-        # deterministic parameters
+        # deterministic cosmology parameters
         det = {spec['name']: spec['value']
                for spec in sampler.prior_specs
                if spec['type'] == 'deterministic'}
@@ -95,9 +111,17 @@ for i in range(len(samples['xlm_real'])):
         mb_det = [spec['value'] for spec in sampler.mb_specs if spec['type'] == 'deterministic']
         if mb_det:
             f['multiplicative_bias_deterministic'] = np.array(mb_det)
+        # Δz                                                                       # <-- new block
+        if dz_i:
+            sorted_dz_keys = sorted(dz_i.keys(), key=lambda k: int(k.split('_')[1]))
+            dz_flat = torch.stack([dz_i[k] for k in sorted_dz_keys]).detach().numpy()
+            f['delta_z'] = dz_flat
+        dz_det = [spec['value'] for spec in sampler.dz_specs if spec['type'] == 'deterministic']
+        if dz_det:
+            f['delta_z_deterministic'] = np.array(dz_det)
         # fields
         if config.store_fields:
-            kappa = x2kappa(xlm_real, xlm_imag, theta_i)
+            kappa = x2kappa(xlm_real, xlm_imag, theta_i, dz_i)                     # <-- pass dz_i
             f['kappa']    = kappa
             f['xlm_real'] = xlm_real
             f['xlm_imag'] = xlm_imag

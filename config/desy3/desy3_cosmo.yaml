@@ -17,13 +17,13 @@ mcmc:
     step_size: 0.2
     
 cosmology:
-    td_file: /path/to/files/training_data.h5
+    td_file: /path/to/files/training_data_G3.npz
     priors:
-    - {name: Om, type: uniform, low: 0.20359217, high: 0.39844121}  
-    - {name: S8, type: uniform, low: 0.50505274, high: 0.99521593}   
-    - {name: w, type: uniform, low: -1.4411547, high: -0.50430316} 
-    - {name: ob, type: uniform, low: 0.02251592, high: 0.02255948} 
-    - {name: h, type: uniform, low: 0.68756442, high: 0.69468036}   
+    - {name: Om, type: uniform} # If left as is, uniform prior bounds are set to td bounds in this param
+    - {name: S8, type: uniform}   
+    - {name: w, type: uniform}   
+    - {name: ob, type: uniform, low: 0.02251592, high: 0.02255948} # You can also specify bounds as this
+    - {name: h, deterministic, value: 0.69}  # You can set deterministic priors (i.e., dirac delta) 
     - {name: ns, type: uniform, low: 0.96144956, high: 0.9631907}   
 
 multiplicative_bias:
@@ -31,6 +31,12 @@ multiplicative_bias:
     - {bin: 1, type: gaussian, mu: 0.0, sigma: 0.01}
     - {bin: 2, type: gaussian, mu: 0.0, sigma: 0.01}
     - {bin: 3, type: gaussian, mu: 0.0, sigma: 0.01}
+
+delta_z:
+    - {bin: 0, type: gaussian, mu: 0.0, sigma: 0.018}
+    - {bin: 1, type: gaussian, mu: 0.0, sigma: 0.015}
+    - {bin: 2, type: gaussian, mu: 0.0, sigma: 0.011}
+    - {bin: 3, type: gaussian, mu: 0.0, sigma: 0.017}
 
 mocks:
     theta_fid:
@@ -41,4 +47,5 @@ mocks:
         h: 0.69112239
         ns: 0.96232013
     mb_init: [0.0, 0.0, 0.0, 0.0]
+    deltaz_init: [0.0, 0.0, 0.0, 0.0]
     N_map: /path/to/files/N.npy

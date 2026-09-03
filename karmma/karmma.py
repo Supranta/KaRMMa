@@ -11,7 +11,11 @@ import pickle
 
 
 class KarmmaSampler:
-    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, lmax=None, gen_lmax=None, pixwin=None, 
+    # Δz beyond fid ± N_SIGMA_DZ * sigma is outside the region the L_emu/params_emu
+    # Taylor expansion has been empirically validated over.
+    N_SIGMA_DZ = 4.0
+
+    def __init__(self, g1_obs, g2_obs, sigma_obs, mask, lmax=None, gen_lmax=None, pixwin=None,
                 td_file=None, mode=None, thetafid=None, prior_specs=None, mb_specs=None, mb_init=None,
                 dz_specs=None, dz_init=None):
         self.g1_obs        = g1_obs       
@@ -32,8 +36,9 @@ class KarmmaSampler:
         self.prior_specs     = self.build_priors(prior_specs)
         self.mb_specs = mb_specs
         self.mb_init  = mb_init if mb_init is not None else np.zeros(self.N_Z_BINS)
-        self.dz_specs = dz_specs                                                   
+        self.dz_specs = dz_specs
         self.dz_init  = dz_init if dz_init is not None else np.zeros(self.N_Z_BINS)
+        self.build_dz_gate(self.N_SIGMA_DZ)
         if pixwin is not None:
             print("Using healpix pixel window function.")
             from scipy.interpolate import interp1d
@@ -124,15 +129,37 @@ class KarmmaSampler:
                 dz.append(pyro.sample(f'dz_{i}', dist.Normal(mu, sigma)))
         return torch.stack(dz)
     
-    def domain_barrier(self, theta):
-        low     = torch.tensor(self.emu_lower_bound, dtype=torch.double)
-        high    = torch.tensor(self.emu_upper_bound, dtype=torch.double)
-        epsilon = 0.005 * (high - low)
-        log_gate = (
-            torch.log(torch.sigmoid((theta - low)  / epsilon)) +
-            torch.log(torch.sigmoid((high - theta) / epsilon))
+    def _soft_gate(self, x, low, high, eps_frac=0.005):
+        epsilon = eps_frac * (high - low)
+        return (
+            torch.log(torch.sigmoid((x - low)  / epsilon)) +
+            torch.log(torch.sigmoid((high - x) / epsilon))
         ).sum()
-        pyro.factor('domain_barrier', log_gate)
+
+    def domain_barrier(self, theta):
+        low  = torch.tensor(self.emu_lower_bound, dtype=torch.double)
+        high = torch.tensor(self.emu_upper_bound, dtype=torch.double)
+        pyro.factor('domain_barrier', self._soft_gate(theta, low, high))
+
+    def build_dz_gate(self, n_sigma):
+        # Only 'gaussian' Δz priors are unbounded and need an emulator-validity
+        # safety net; 'uniform' already has hard-bounded support and 'deterministic'
+        # is never sampled.
+        idx, low, high = [], [], []
+        for i, spec in enumerate(self.dz_specs):
+            if spec['type'] == 'gaussian':
+                idx.append(i)
+                low.append(spec['mu']  - n_sigma * spec['sigma'])
+                high.append(spec['mu'] + n_sigma * spec['sigma'])
+        self.dz_gate_idx  = torch.tensor(idx, dtype=torch.long)
+        self.dz_gate_low  = torch.tensor(low,  dtype=torch.double)
+        self.dz_gate_high = torch.tensor(high, dtype=torch.double)
+
+    def deltaz_barrier(self, deltaz):
+        if len(self.dz_gate_idx) == 0:
+            return
+        pyro.factor('deltaz_barrier',
+                     self._soft_gate(deltaz[self.dz_gate_idx], self.dz_gate_low, self.dz_gate_high))
 
     def tensorize(self):
         self.g1_obs    = torch.tensor(self.g1_obs)
@@ -201,10 +228,15 @@ class KarmmaSampler:
                                                     torch.ones(self.N_Z_BINS, ((ell > 1) & (emm > 0)).sum(), dtype=torch.double)))
         xlm  = self.get_xlm(xlm_real, xlm_imag)
 
-        # Sample Δz nuisance, then query both emulators at (theta, Δz)
+        # Sample Δz nuisance, gate it against the emulator's validated range, then
+        # query both emulators at (theta, Δz)
         deltaz = self.sample_deltaz()
-        y_cl   = self.l_emu.predict(theta_clamped, deltaz)                  # shape (N_bins, N_bins, N_ell)
-        params = self.p_emu.predict(theta_clamped, deltaz)                  # shape (N_bins, N_fit)
+        self.deltaz_barrier(deltaz)
+        deltaz_clamped = deltaz.clone()
+        if len(self.dz_gate_idx) > 0:
+            deltaz_clamped[self.dz_gate_idx] = torch.clamp(deltaz[self.dz_gate_idx], self.dz_gate_low, self.dz_gate_high)
+        y_cl   = self.l_emu.predict(theta_clamped, deltaz_clamped)          # shape (N_bins, N_bins, N_ell)
+        params = self.p_emu.predict(theta_clamped, deltaz_clamped)          # shape (N_bins, N_fit)
 
         ylm  = self.apply_cl(xlm, y_cl)
 
